@@ -87,6 +87,33 @@ have published the account name behind the nym.
   development builds (`cargo build` without the Tauri CLI) and is absent
   from `tauri build` output, which is what gets released.
 
+## SeedScan: a chosen folder could be skipped as a whole
+
+Found by the first CI run on Windows. The test that scans a folder in the
+temp directory reported **0 files** on `windows-latest`, while Linux and
+macOS passed: on Windows the temp directory is `…\AppData\Local\Temp`, and
+the skip rule for `AppData/Local/Temp` was applied to the folder the user
+had chosen, not only to folders found inside it. Ask SeedScan to check
+something under Temp and it answered "0 files", which reads as "clean".
+The same code had two more faults:
+
+- **Hidden roots were skipped.** Choose `~/.electrum` or another folder whose
+  name starts with a dot, and without `--hidden` nothing was scanned — the
+  very folders where wallets keep their files.
+- **Skip rules matched substrings of the path**, not folder names: the
+  rule for `target` also skipped `targeted_notes` (any path containing
+  `/target`) and `mytarget` (any name ending in `target`).
+
+Now a folder the user chose is **always** scanned, and skip rules compare
+whole folder names at the end of the path, case-insensitively
+(`AppData/Local/Temp` needs all three in order). Fixed in the app and in
+`seedscan-cli`. Four new tests reproduce the failures on any system (by
+building `AppData/Local/Temp`, `.electrum` and `targeted_notes` folders in a
+temp directory); three of them **fail on the old code** and pass on the new.
+
+Also: `actions/checkout` v4 → v5 (pinned commit), which runs on Node 24 and
+removes GitHub's Node 20 deprecation warning.
+
 ## Smaller fixes
 - `tools/gen-third-party.py` now runs `cargo fetch` first; on a fresh CI
   runner the crate sources (and their LICENSE files) were not downloaded, so
@@ -97,7 +124,7 @@ have published the account name behind the nym.
   version 3.x taken from `Cargo.toml`, `LICENSE`, `THIRD-PARTY.md` and
   `DISCLAIMER.md` installed next to the app, `seedscan-cli` included.
 
-Tests: 63 library + 22 CLI.
+Tests: 67 library + 22 CLI.
 
 ---
 

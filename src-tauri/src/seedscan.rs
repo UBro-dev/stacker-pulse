@@ -91,11 +91,23 @@ pub fn default_scan_paths() -> Vec<PathBuf> {
         .collect()
 }
 
+/// True if a directory found *during the walk* is one we never look inside.
+/// Matches whole path components at the end of the path, case-insensitively,
+/// so "target" skips `…/target` but not `…/targeted_notes` or `…/mytarget`,
+/// and "AppData/Local/Temp" needs all three components in that order.
+/// Never call this for a folder the user chose: see `filter_entry` callers.
 fn should_skip_dir(path: &Path) -> bool {
-    let s = path.to_string_lossy().replace('\\', "/");
-    SKIP_DIRS
-        .iter()
-        .any(|d| s.contains(&format!("/{d}")) || s.ends_with(d))
+    let comps: Vec<String> = path
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().to_lowercase()),
+            _ => None,
+        })
+        .collect();
+    SKIP_DIRS.iter().any(|d| {
+        let parts: Vec<String> = d.split('/').map(|p| p.to_lowercase()).collect();
+        comps.len() >= parts.len() && comps[comps.len() - parts.len()..] == parts[..]
+    })
 }
 
 fn should_skip_file(path: &Path, max_bytes: u64) -> bool {
@@ -169,6 +181,11 @@ pub fn scan_folders(paths: Vec<PathBuf>, max_size_mb: u64, include_hidden: bool)
             .follow_links(false)
             .into_iter()
             .filter_entry(|e| {
+                // A folder the user chose explicitly is always scanned, even if
+                // it is hidden (~/.config/solana) or under AppData/Local/Temp.
+                if e.depth() == 0 {
+                    return true;
+                }
                 if !include_hidden {
                     let hidden = e
                         .file_name()
@@ -253,5 +270,86 @@ mod path_tests {
                 .to_string()]
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    const SEED: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about\n";
+
+    fn fresh(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sp_{name}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// The Windows CI failure: a chosen folder under AppData\Local\Temp was
+    /// skipped as a whole, and the scan reported "0 files" as if clean.
+    #[test]
+    fn a_chosen_folder_inside_appdata_temp_is_scanned() {
+        let base = fresh("temp_root");
+        let proj = base.join("AppData").join("Local").join("Temp").join("proj");
+        fs::create_dir_all(&proj).unwrap();
+        fs::write(proj.join("notes.txt"), SEED).unwrap();
+        let rep = scan_folders(vec![proj], 8, false);
+        assert_eq!(rep.scanned_files, 1);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Scanning a whole profile still skips the Temp folder found inside it.
+    #[test]
+    fn appdata_temp_is_still_skipped_when_found_during_the_walk() {
+        let home = fresh("profile");
+        let junk = home.join("AppData").join("Local").join("Temp").join("junk");
+        fs::create_dir_all(&junk).unwrap();
+        fs::write(junk.join("seed.txt"), SEED).unwrap();
+        fs::create_dir_all(home.join("Documents")).unwrap();
+        fs::write(home.join("Documents").join("seed.txt"), SEED).unwrap();
+        let rep = scan_folders(vec![home.clone()], 8, false);
+        assert_eq!(rep.scanned_files, 1, "only Documents/seed.txt");
+        assert!(rep.hits[0].path.contains("Documents"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    /// A hidden folder the user names explicitly is scanned without --hidden:
+    /// wallets keep their files in ~/.electrum, ~/.config/solana and the like.
+    #[test]
+    fn a_chosen_hidden_folder_is_scanned_without_the_hidden_flag() {
+        let base = fresh("hidden_root");
+        // The chosen folder's own name starts with a dot, like ~/.electrum.
+        let wallet = base.join(".electrum");
+        fs::create_dir_all(&wallet).unwrap();
+        fs::write(wallet.join("backup.txt"), SEED).unwrap();
+        let rep = scan_folders(vec![wallet], 8, false);
+        assert_eq!(rep.scanned_files, 1);
+        // ...but hidden folders met during the walk are still skipped.
+        let rep = scan_folders(vec![base.clone()], 8, false);
+        assert_eq!(rep.scanned_files, 0);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Skip rules match whole folder names, not substrings of the path.
+    #[test]
+    fn skip_rules_match_whole_folder_names() {
+        let base = fresh("names");
+        for d in ["target", "targeted_notes", "mytarget", "Target"] {
+            fs::create_dir_all(base.join(d)).unwrap();
+            fs::write(base.join(d).join("s.txt"), SEED).unwrap();
+        }
+        let rep = scan_folders(vec![base.clone()], 8, false);
+        let mut seen: Vec<String> = rep
+            .hits
+            .iter()
+            .map(|h| {
+                Path::new(&h.path)
+                    .parent()
+                    .unwrap()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        seen.sort();
+        assert_eq!(seen, vec!["mytarget", "targeted_notes"]);
+        let _ = fs::remove_dir_all(&base);
     }
 }

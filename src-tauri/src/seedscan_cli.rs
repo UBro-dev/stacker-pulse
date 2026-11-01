@@ -103,11 +103,23 @@ fn dirs_home() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// True if a directory found *during the walk* is one we never look inside.
+/// Matches whole path components at the end of the path, case-insensitively,
+/// so "target" skips `…/target` but not `…/targeted_notes` or `…/mytarget`,
+/// and "AppData/Local/Temp" needs all three components in that order.
+/// Never call this for a folder the user chose: see `filter_entry` callers.
 fn should_skip_dir(path: &Path) -> bool {
-    let s = path.to_string_lossy().replace('\\', "/");
-    SKIP_DIRS
-        .iter()
-        .any(|d| s.contains(&format!("/{d}")) || s.ends_with(d))
+    let comps: Vec<String> = path
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().to_lowercase()),
+            _ => None,
+        })
+        .collect();
+    SKIP_DIRS.iter().any(|d| {
+        let parts: Vec<String> = d.split('/').map(|p| p.to_lowercase()).collect();
+        comps.len() >= parts.len() && comps[comps.len() - parts.len()..] == parts[..]
+    })
 }
 
 fn should_skip_file(path: &Path, max_bytes: u64) -> bool {
@@ -195,6 +207,11 @@ fn main() {
             .follow_links(false)
             .into_iter()
             .filter_entry(|e| {
+                // A folder the user chose explicitly is always scanned, even if
+                // it is hidden (~/.config/solana) or under AppData/Local/Temp.
+                if e.depth() == 0 {
+                    return true;
+                }
                 if !args.hidden {
                     let hidden = e
                         .file_name()
