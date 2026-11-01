@@ -1,0 +1,252 @@
+# Pushing a tag such as v3.1.0 builds installers for Windows, Linux and macOS,
+# attaches them and the seedscan CLI to a draft GitHub release, publishes
+# SHA-256 checksums and signs build-provenance attestations for every file.
+#
+# The release stays a DRAFT: review it on GitHub, then press "Publish".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  check:
+    name: Tag, version and licences
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Tag must match the version in Cargo.toml
+        run: |
+          v=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
+          if [ "v$v" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match Cargo.toml version $v"; exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: THIRD-PARTY.md must match the dependencies being shipped
+        run: |
+          python3 tools/gen-third-party.py
+          git diff --exit-code -- THIRD-PARTY.md || {
+            echo "::error::THIRD-PARTY.md is stale. Run 'python tools/gen-third-party.py' and commit the result."
+            exit 1
+          }
+
+  create-release:
+    name: Create draft release
+    needs: check
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Release notes from the top section of FIXES.md
+        run: |
+          awk 'NR>1 && /^---$/ {exit} {print}' FIXES.md > notes.md
+          cat >> notes.md <<'EOF'
+
+          ---
+
+          ### Verify your download
+
+          Every file below has a SHA-256 checksum in `SHA256SUMS.txt` and a
+          build-provenance attestation proving it was built by this workflow
+          from this repository:
+
+          ```
+          gh attestation verify <file> --repo ${{ github.repository }}
+          ```
+
+          The installers are **not code-signed** (that needs a real-name
+          certificate). Windows SmartScreen and macOS Gatekeeper will warn the
+          first time; see the README for how to open the app safely.
+          EOF
+
+      - name: Create the draft
+        id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag \
+            --title "StackerPulse $TAG" --notes-file notes.md \
+            --repo "${{ github.repository }}"
+          id=$(gh api "repos/${{ github.repository }}/releases" \
+               --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-22.04
+            args: ""
+            cli_dir: src-tauri/target/release
+            cli_asset: seedscan-cli-linux-x64
+          - name: Windows x64
+            os: windows-latest
+            args: ""
+            cli_dir: src-tauri/target/release
+            cli_asset: seedscan-cli-windows-x64
+          - name: macOS universal
+            os: macos-latest
+            args: "--target universal-apple-darwin"
+            cli_dir: ""
+            cli_asset: seedscan-cli-macos-universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Remap home and workspace paths out of the binaries
+        # rustc embeds the absolute path of every source file in panic
+        # messages; without this each binary carries ~450 copies of the
+        # runner's home path. Same flags as build_*.sh / build_windows.ps1.
+        shell: bash
+        run: |
+          home="${USERPROFILE:-$HOME}"
+          printf 'CARGO_ENCODED_RUSTFLAGS=--remap-path-prefix=%s=~\x1f--remap-path-prefix=%s=.\n' \
+            "$home" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+      - name: Tests on this platform
+        working-directory: src-tauri
+        run: cargo test --release
+
+      - name: Build installers and attach them to the draft
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+          # No package.json in this repo: pin the CLI that builds the bundles.
+          tauriScript: npx --yes @tauri-apps/cli@2.12.4
+
+      - name: No home-folder paths in the shipped binaries
+        shell: bash
+        run: |
+          home="${USERPROFILE:-$HOME}"
+          case "$RUNNER_OS" in
+            macOS)   bins="src-tauri/target/universal-apple-darwin/release/stacker-pulse
+                           src-tauri/target/aarch64-apple-darwin/release/seedscan-cli
+                           src-tauri/target/x86_64-apple-darwin/release/seedscan-cli" ;;
+            Windows) bins="src-tauri/target/release/stacker-pulse.exe
+                           src-tauri/target/release/seedscan-cli.exe" ;;
+            *)       bins="src-tauri/target/release/stacker-pulse
+                           src-tauri/target/release/seedscan-cli" ;;
+          esac
+          for b in $bins; do
+            if grep -aqF "$home" "$b"; then
+              echo "::error::$b still contains $home"; exit 1
+            fi
+            echo "clean: $b"
+          done
+
+      - name: Package the seedscan CLI
+        shell: bash
+        run: |
+          mkdir -p cli && cp LICENSE THIRD-PARTY.md DISCLAIMER.md cli/
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            lipo -create -output cli/seedscan-cli \
+              src-tauri/target/aarch64-apple-darwin/release/seedscan-cli \
+              src-tauri/target/x86_64-apple-darwin/release/seedscan-cli
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            cp "${{ matrix.cli_dir }}/seedscan-cli.exe" cli/
+          else
+            cp "${{ matrix.cli_dir }}/seedscan-cli" cli/
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            (cd cli && 7z a "../${{ matrix.cli_asset }}.zip" . > /dev/null)
+            echo "CLI_FILE=${{ matrix.cli_asset }}.zip" >> "$GITHUB_ENV"
+          else
+            tar -czf "${{ matrix.cli_asset }}.tar.gz" -C cli .
+            echo "CLI_FILE=${{ matrix.cli_asset }}.tar.gz" >> "$GITHUB_ENV"
+          fi
+
+      - name: Attach the CLI to the draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$CLI_FILE" --clobber --repo "${{ github.repository }}"
+
+  checksums-and-attestations:
+    name: Checksums and provenance
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download every release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download "$TAG" --dir dist --repo "${{ github.repository }}"
+          ls -l dist
+
+      - name: SHA256SUMS.txt
+        working-directory: dist
+        run: sha256sum -- * | tee ../SHA256SUMS.txt
+
+      - name: Build-provenance attestation for every file
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: "dist/*"
+
+      - name: Attach the checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" SHA256SUMS.txt --clobber --repo "${{ github.repository }}"
+
+      - name: Summary
+        run: |
+          {
+            echo "### StackerPulse $TAG is ready as a draft"
+            echo
+            echo "Open the release on GitHub, check the files, then press **Publish**."
+            echo
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

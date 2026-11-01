@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<!--
+  StackerPulse ⚡🦀 + SeedScan 🛡️
+  Author: UBro-dev
+  License: MIT (Copyright (c) 2026 UBro-dev)
+  Privacy by Design: Zero Telemetry, Strict Host Allowlist, Airgap Mode, Tor SOCKS5h
+-->
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StackerPulse ⚡ — Командный центр и аналитика для Stacker News</title>
+    <link rel="stylesheet" href="vendor/tailwind.css" />
+  <script src="vendor/chart.umd.js"></script>
+  <meta name="referrer" content="no-referrer" />
+  <!-- Dark form controls. WebKitGTK (Linux) draws <select> with the light GTK
+       theme unless the page declares a dark color scheme. -->
+  <meta name="color-scheme" content="dark" />
+  <style>:root { color-scheme: dark; } select, option { color-scheme: dark; background-color: #1b1b1f; color: #e4e4e7; }</style>
+  
+  <style>
+    :root {
+      --glass-blur: 28px;
+      --glass-sat: 195%;
+      --glass-bg: rgba(24, 27, 40, 0.42);
+      --glass-bg-strong: rgba(17, 20, 32, 0.62);
+      --glass-border: rgba(255, 255, 255, 0.16);
+      --glass-highlight: rgba(255, 255, 255, 0.34);
+    }
+    body {
+      background: radial-gradient(circle at 15% 15%, #17152e 0%, #090b12 52%, #05060a 100%);
+      color: #f8fafc;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+      position: relative;
+    }
+    /* Ambient Liquid Plasma / Aurora Orbs */
+    .liquid-ambient-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .aurora-orb {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(85px);
+      opacity: 0.46;
+      animation: floatOrb 18s ease-in-out infinite alternate;
+    }
+    .orb-gold {
+      width: 460px;
+      height: 460px;
+      background: radial-gradient(circle, rgba(250, 218, 94, 0.52) 0%, rgba(245, 158, 11, 0.08) 70%);
+      top: -110px;
+      left: 6%;
+    }
+    .orb-cyan {
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.44) 0%, rgba(14, 165, 233, 0.05) 70%);
+      top: 22%;
+      right: -120px;
+      animation-delay: -5s;
+    }
+    .orb-violet {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.38) 0%, rgba(139, 92, 246, 0.05) 70%);
+      bottom: -140px;
+      left: 28%;
+      animation-delay: -10s;
+    }
+    .orb-emerald {
+      width: 360px;
+      height: 360px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.32) 0%, rgba(16, 185, 129, 0.04) 70%);
+      bottom: 12%;
+      left: -80px;
+      animation-delay: -7s;
+    }
+    @keyframes floatOrb {
+      0% { transform: translate3d(0px, 0px, 0) scale(1); }
+      50% { transform: translate3d(28px, -22px, 0) scale(1.07); }
+      100% { transform: translate3d(-20px, 24px, 0) scale(0.95); }
+    }
+
+    /* Core Liquid Glass Surface Shader */
+    .liquid-shell,
+    .bg-\[#1b1b1f\],
+    .bg-zinc-900,
+    .bg-zinc-900\/90,
+    .bg-zinc-900\/70 {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.11) 0%,
+        rgba(255, 255, 255, 0.04) 45%,
+        rgba(250, 218, 94, 0.03) 100%
+      ) !important;
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.30),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.04),
+        0 18px 40px -12px rgba(0, 0, 0, 0.62) !important;
+      transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease !important;
+    }
+    article.bg-\[#1b1b1f\]:hover {
+      transform: translateY(-2px);
+      border-color: rgba(250, 218, 94, 0.45) !important;
+      box-shadow:
+        inset 0 1px 1.5px rgba(255, 255, 255, 0.44),
+        0 22px 46px -12px rgba(0, 0, 0, 0.75),
+        0 0 24px rgba(250, 218, 94, 0.14) !important;
+    }
+    .liquid-header {
+      background: linear-gradient(180deg, rgba(18, 21, 34, 0.72) 0%, rgba(12, 15, 24, 0.54) 100%) !important;
+      backdrop-filter: blur(32px) saturate(210%) !important;
+      -webkit-backdrop-filter: blur(32px) saturate(210%) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 12px 32px rgba(0, 0, 0, 0.5);
+    }
+    .liquid-nav-strip {
+      background: rgba(10, 12, 20, 0.38) !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    input:not([type="range"]):not([type="checkbox"]),
+    select,
+    textarea {
+      background: rgba(10, 13, 22, 0.56) !important;
+      backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+    }
+    input:not([type="range"]):not([type="checkbox"]):focus,
+    select:focus,
+    textarea:focus {
+      border-color: rgba(250, 218, 94, 0.75) !important;
+      box-shadow: 0 0 0 3px rgba(250, 218, 94, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.25) !important;
+    }
+    .sn-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .sn-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 18, 28, 0.4);
+    }
+    .sn-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 9999px;
+    }
+    .sn-scroll::-webkit-scrollbar-thumb:hover {
+      background: #FADA5E;
+    }
+    .bolt-glow {
+      box-shadow: 0 0 25px rgba(250, 218, 94, 0.24);
+    }
+    .tab-active {
+      background: linear-gradient(135deg, rgba(250, 218, 94, 0.25) 0%, rgba(250, 218, 94, 0.08) 100%) !important;
+      color: #FADA5E !important;
+      border-color: rgba(250, 218, 94, 0.55) !important;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 6px 18px rgba(250, 218, 94, 0.15);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col text-zinc-100 selection:bg-[#FADA5E] selection:text-black">
+
+  <!-- Liquid Glass Ambient Light Field -->
+  <div class="liquid-ambient-canvas" aria-hidden="true">
+    <div class="aurora-orb orb-gold"></div>
+    <div class="aurora-orb orb-cyan"></div>
+    <div class="aurora-orb orb-violet"></div>
+    <div class="aurora-orb orb-emerald"></div>
+  </div>
+
+  <!-- Native Cross-Platform OS Titlebar (Rust + Tauri v2 Window Decoration Bar) -->
+  <div class="relative z-40 border-b border-white/10 bg-black/40 backdrop-blur-2xl px-4 py-1.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FADA5E]/20 text-[#FADA5E] border border-[#FADA5E]/40 font-bold">
+          ⚡ by UBro-dev (MIT)
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-400/30 font-semibold">
+          🦀 Rust · Tauri v2 + SeedScan
+        </span>
+        <span id="osRuntimeBadge" class="hidden xl:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-400/30">
+          🪟 Windows · 🐧 Linux
+        </span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button type="button" id="airgapQuickToggleBtn" class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-400/30 transition flex items-center gap-1" title="Privacy by Design: Блокировка всех внешних сокетов (Offline Airgap)">
+          <span>🛡️</span><span id="zeroTelemetryBadge">Privacy-by-Design · Airgap: ВЫКЛ</span>
+        </button>
+        <button type="button" id="torQuickToggleBtn" class="px-2.5 py-0.5 rounded-full bg-purple-500/15 hover:bg-purple-500/30 text-purple-200 border border-purple-400/40 transition flex items-center gap-1">
+          <span>🧅</span><span id="torQuickStatusLabel">Tor: ВЫКЛ (Clearnet)</span>
+        </button>
+        <div class="flex items-center rounded-lg bg-white/5 p-0.5 border border-white/15">
+          <button type="button" id="langRuBtn" class="px-2 py-0.5 rounded text-[11px] font-bold bg-[#FADA5E] text-black transition">RU</button>
+          <button type="button" id="langEnBtn" class="px-2 py-0.5 rounded text-[11px] font-bold text-zinc-300 hover:text-white transition">EN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Header Bar -->
+  <header class="sticky top-0 z-30 liquid-header">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-[#FADA5E] text-black flex items-center justify-center font-extrabold text-xl shadow-md">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-extrabold tracking-tight text-white">stacker<span class="text-[#FADA5E]">pulse</span></h1>
+            <span class="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-[#FADA5E] border border-zinc-700" id="appVersionBadge">SN Power Suite</span>
+          </div>
+          <p id="appSubtitleText" class="text-xs text-zinc-400">Лента, баунти, экономика территорий, SeedScan и студия постов для Stacker News</p>
+        </div>
+      </div>
+
+      <!-- Live Market & Rewards Ticker -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+        <div class="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5" title="Курс BTC из Stacker News; нужен, чтобы показывать суммы в долларах">
+          <span class="text-zinc-400">BTC:</span>
+          <span id="btcPriceDisplay" class="font-mono font-bold text-[#FADA5E]">—</span>
+          <span id="satsPerUsdBadge" class="font-mono text-[11px] text-zinc-400"></span>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5">
+          <span class="text-zinc-400" title="Сколько сатоши SN раздаст сегодня самым полезным авторам и зап-перам">Награды SN сегодня:</span>
+          <span id="rewardsPoolHeader" class="font-mono font-semibold text-emerald-400">—</span>
+        </div>
+
+        <button id="syncLiveApiBtn" type="button"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold transition text-xs shadow">
+          <span id="syncSpinner">🔄</span>
+          <span id="syncBtnLabel">Обновить с SN</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="max-w-7xl mx-auto px-4 liquid-nav-strip">
+      <nav class="flex flex-wrap items-center gap-1.5 py-2 text-xs sm:text-sm font-medium" aria-label="Разделы">
+        <button type="button" data-tab="radar" class="nav-tab tab-active whitespace-nowrap px-3.5 py-2 rounded-lg border border-transparent transition flex items-center gap-2">
+          <span>📡</span><span>Радар & Закладки</span>
+          <span id="navFeedCount" class="text-[11px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">0</span>
+        </button>
+        <button type="button" data-tab="bounties" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-lg border border-transparent text-zinc-400 hover:text-white transition flex items-center gap-2">
+          <span>🎯</span><span>Охотник за Баунти</span>
+          <span id="navBountyCount" class="text-[11px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/60">0</span>
+        </button>
+        <button type="button" data-tab="territories" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-lg border border-transparent text-zinc-400 hover:text-white transition flex items-center gap-2">
+          <span>🗺️</span><span>Экономика территорий</span>
+        </button>
+        <button type="button" data-tab="studio" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-lg border border-transparent text-zinc-400 hover:text-white transition flex items-center gap-2">
+          <span>✍️</span><span>Студия Постов & Очистка Ссылок</span>
+        </button>
+        <button type="button" data-tab="analytics" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-lg border border-transparent text-zinc-400 hover:text-white transition flex items-center gap-2">
+          <span>📊</span><span>Статистика стакера</span>
+        </button>
+        <button type="button" data-tab="graphql" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-xl border border-transparent text-zinc-300 hover:text-white transition flex items-center gap-2">
+          <span>⚡</span><span>GraphQL Песочница</span>
+        </button>
+        <button type="button" data-tab="seedscan" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:text-white transition flex items-center gap-2">
+          <span>🛡️</span><span>SeedScan & OpSec</span>
+        </button>
+        <button type="button" data-tab="rustcore" class="nav-tab whitespace-nowrap px-3.5 py-2 rounded-xl border border-orange-400/30 bg-orange-500/10 text-orange-300 hover:text-white transition flex items-center gap-2">
+          <span>⚙️</span><span>Настройки и приватность</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Status Banner / Toast -->
+  <div id="statusToast" class="hidden fixed bottom-5 right-5 z-50 max-w-sm bg-zinc-900 border border-[#FADA5E] text-zinc-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs">
+    <span class="text-lg">⚡</span>
+    <div id="statusToastText" class="flex-1 font-medium">Готово</div>
+    <button id="closeToastBtn" type="button" class="text-zinc-400 hover:text-white font-bold">✕</button>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+
+    <!-- ==================== TAB 1: RADAR & SMART BOOKMARKS ==================== -->
+    <section id="tab-radar" class="tab-panel space-y-6">
+      <!-- Top KPI Strip -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4">
+          <div class="text-xs text-zinc-400 flex items-center justify-between">
+            <span>Суммарный стак в выборке</span>
+            <span class="text-[#FADA5E]">⚡ Sats</span>
+          </div>
+          <div id="kpiTotalSats" class="text-2xl font-extrabold font-mono text-white mt-1">0</div>
+          <div id="kpiTotalUsd" class="text-xs text-zinc-400 font-mono mt-0.5">≈ $0.00</div>
+        </div>
+        <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4">
+          <div class="text-xs text-zinc-400 flex items-center justify-between">
+            <span>Средний Signal Score</span>
+            <span class="text-emerald-400">Sats / коммент</span>
+          </div>
+          <div id="kpiSignalRatio" class="text-2xl font-extrabold font-mono text-emerald-400 mt-1">0</div>
+          <div class="text-xs text-zinc-400 mt-0.5">Отношение сатоши к шуму</div>
+        </div>
+        <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4">
+          <div class="text-xs text-zinc-400 flex items-center justify-between">
+            <span>Лучшая территория</span>
+            <span class="text-amber-400">🔥 Лидер</span>
+          </div>
+          <div id="kpiTopTerritory" class="text-2xl font-extrabold font-mono text-[#FADA5E] mt-1">—</div>
+          <div id="kpiTopTerritorySub" class="text-xs text-zinc-400 mt-0.5">Максимальная плотность сатоши</div>
+        </div>
+        <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4">
+          <div class="text-xs text-zinc-400 flex items-center justify-between">
+            <span>Умные закладки</span>
+            <span class="text-sky-400">🔖 Локальная база</span>
+          </div>
+          <div id="kpiBookmarksCount" class="text-2xl font-extrabold font-mono text-sky-400 mt-1">0</div>
+          <div class="text-xs text-zinc-400 mt-0.5">С тегами, заметками и сортировкой</div>
+        </div>
+      </div>
+
+      <!-- Filter & View Controls -->
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <button type="button" id="radarModeFeedBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FADA5E] text-black transition">
+              🔥 Умная лента (0)
+            </button>
+            <button type="button" id="radarModeBookmarksBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 text-zinc-300 hover:text-white transition">
+              🔖 Менеджер закладок (<span id="bookmarkBtnCounter">0</span>)
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <select id="feedSortSelect" class="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white" title="Сортировка на стороне SN">
+              <option value="hot">🔥 Горячее</option>
+              <option value="new">🆕 Новое</option>
+              <option value="top">🏆 Топ</option>
+            </select>
+            <select id="feedWhenSelect" class="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white" title="Период для «Топ»">
+              <option value="day">за день</option>
+              <option value="week">за неделю</option>
+              <option value="month">за месяц</option>
+              <option value="year">за год</option>
+              <option value="forever">за всё время</option>
+            </select>
+            <button type="button" id="feedLoadBtn" class="px-3 py-1.5 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold transition">⬇ Загрузить с SN</button>
+            <span id="apiSourceBadge" class="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 font-mono max-w-[18rem] truncate inline-block align-middle">
+              Не загружено
+            </span>
+            <button type="button" id="exportFeedCsvBtn" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium transition">
+              📥 Экспорт выборки (CSV)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <label for="radarSearchInput" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Поиск по заголовку / @nym / домену</label>
+            <div class="flex items-center gap-1.5">
+              <input id="radarSearchInput" type="text" placeholder="Напр. lightning, @nym, github..."
+                class="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]" />
+              <button type="button" id="radarSearchRefreshBtn" title="Обновить поиск"
+                class="px-2.5 py-2 rounded-lg bg-zinc-800 hover:bg-[#FADA5E] hover:text-black text-zinc-200 text-xs transition shrink-0">🔄</button>
+            </div>
+          </div>
+          <div>
+            <label for="radarTerritorySelect" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Территория (~sub)</label>
+            <select id="radarTerritorySelect" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]">
+              <option value="all">Все территории</option>
+              <option value="bitcoin">~bitcoin</option>
+              <option value="devs">~devs</option>
+              <option value="lightning">~lightning</option>
+              <option value="nostr">~nostr</option>
+              <option value="meta">~meta</option>
+            </select>
+          </div>
+          <div>
+            <label for="radarTypeSelect" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Тип поста</label>
+            <select id="radarTypeSelect" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]">
+              <option value="all">Все типы</option>
+              <option value="LINK">🔗 Ссылка (Link)</option>
+              <option value="DISCUSSION">💬 Дискуссия</option>
+              <option value="BOUNTY">🎯 Баунти</option>
+            </select>
+          </div>
+          <div>
+            <label for="radarSortSelect" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Сортировка</label>
+            <select id="radarSortSelect" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]">
+              <option value="sats_desc">⚡ Больше всего сатоши</option>
+              <option value="signal_desc">💎 Высший Signal Score (Sats/Comment)</option>
+              <option value="velocity_desc">🚀 Скорость стака (Sats/час)</option>
+              <option value="comments_desc">💬 Самые обсуждаемые</option>
+            </select>
+          </div>
+          <div>
+            <label for="radarMinSatsInput" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Мин. порог: <span id="minSatsVal" class="text-[#FADA5E] font-mono">0</span> sats</label>
+            <input id="radarMinSatsInput" type="range" min="0" max="5000" step="100" value="0"
+              class="w-full accent-[#FADA5E] cursor-pointer mt-2" />
+            <div class="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input id="hideFreebiesToggle" type="checkbox" class="accent-[#FADA5E] rounded" />
+                <span>Скрыть 0-sat / freebie</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input id="autoXcancelToggle" type="checkbox" checked class="accent-[#FADA5E] rounded" />
+                <span>x.com → xcancel</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feed List OR Bookmarks Manager -->
+      <div id="radarFeedContainer" class="space-y-2.5"></div>
+
+      <!-- Smart Bookmarks Manager View (Hidden by default, toggled via button) -->
+      <div id="radarBookmarksContainer" class="hidden space-y-4">
+        <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🔖 Менеджер умных закладок (решение запроса GitHub Discussions: Reorder & Tag Bookmarks)</span>
+            </h2>
+            <p class="text-xs text-zinc-400 mt-0.5">На Stacker News нельзя менять порядок закладок, добавлять к ним личные заметки или теги. Здесь вы можете упорядочивать их кнопками ↑/↓ и экспортировать в JSON/CSV.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="bookmarkTagFilter" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white">
+              <option value="all">Все теги</option>
+              <option value="dev">dev</option>
+              <option value="research">research</option>
+              <option value="lightning">lightning</option>
+              <option value="bounty">bounty</option>
+            </select>
+            <button type="button" id="exportBookmarksJsonBtn" class="px-3 py-1.5 rounded-lg bg-[#FADA5E] text-black font-semibold text-xs">
+              💾 Экспорт закладок (JSON)
+            </button>
+          </div>
+        </div>
+        <div id="bookmarksList" class="space-y-2.5"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: BOUNTY & OPPORTUNITY HUNTER ==================== -->
+    <section id="tab-bounties" class="tab-panel hidden space-y-6">
+      <div class="bg-gradient-to-r from-[#1b1b1f] via-[#222018] to-[#1b1b1f] border border-amber-500/30 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div class="max-w-2xl space-y-1">
+          <div class="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#FADA5E] bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+            🎯 Единый радар заработка сатоши (Community Bounties + GitHub PR Bounties)
+          </div>
+          <h2 class="text-lg font-extrabold text-white">Охотник за Баунти Stacker News</h2>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            На Stacker News нет единой панели для отслеживания открытых баунти по всем территориям (<code class="text-[#FADA5E]">~devs</code>, <code class="text-[#FADA5E]">~bitcoin</code>, <code class="text-[#FADA5E]">~lightning</code>) и официальных выплат за PR в репозиторий <code class="text-[#FADA5E]">stackernews/stacker.news</code> (от 20k до 1M sats). Фильтруйте задачи по статусу, сложности и ставке сатоши в час.
+          </p>
+        </div>
+        <div class="flex gap-3">
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl px-4 py-3 text-right">
+            <div class="text-[11px] text-zinc-400">Открытый пул баунти</div>
+            <div id="bountyTotalOpenSats" class="text-xl font-extrabold font-mono text-[#FADA5E]">0 sats</div>
+            <div id="bountyTotalOpenUsd" class="text-xs font-mono text-emerald-400">≈ $0</div>
+          </div>
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl px-4 py-3 text-right">
+            <div class="text-[11px] text-zinc-400">Мои задачи (в работе / PR)</div>
+            <div id="bountyMyActiveCount" class="text-xl font-extrabold font-mono text-sky-400">0</div>
+            <div id="bountyMyActiveSats" class="text-xs font-mono text-zinc-300">0 sats в работе</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bounty Filters -->
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label for="bountySourceFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Категория баунти</label>
+          <select id="bountySourceFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="all">Все источники (Посты SN + GitHub PR)</option>
+            <option value="SN_POST">⚡ Посты-баунти в сообществе SN</option>
+            <option value="GITHUB_PR">🐙 Официальные PR-баунти репозитория SN</option>
+            <option value="CUSTOM">📝 Мои добавленные задачи</option>
+            <option value="MINE">🎯 Только отслеживаемые мной</option>
+          </select>
+        </div>
+        <div>
+          <label for="bountyStatusFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Статус выплаты</label>
+          <select id="bountyStatusFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="OPEN">🟢 Только открытые (Unpaid)</option>
+            <option value="all">Все (открытые и закрытые)</option>
+            <option value="PAID">⚪ Закрытые / выплаченные</option>
+          </select>
+        </div>
+        <div>
+          <label for="bountyDifficultyFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Сложность</label>
+          <select id="bountyDifficultyFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="all">Любая сложность</option>
+            <option value="Easy">Easy / Good First (20k–100k sats)</option>
+            <option value="Medium">Medium (250k sats)</option>
+            <option value="Hard">Hard / Core (500k–1M sats)</option>
+          </select>
+        </div>
+        <div>
+          <label for="bountySortFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Сортировка</label>
+          <select id="bountySortFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="reward_desc">💰 По размеру награды (убыв.)</option>
+            <option value="hourly_desc">⚡ По выгодности (Sats / час оценки)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Live GitHub issues + personal tracker -->
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 space-y-3 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="bountySearchInput" type="text" spellcheck="false" autocomplete="off"
+            placeholder="Поиск по задачам (Enter или 🔍 — также искать на GitHub)"
+            class="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]" />
+          <button type="button" id="bountySearchBtn" title="Искать" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-[#FADA5E] hover:text-black text-zinc-200 font-semibold text-xs transition">🔍</button>
+          <button type="button" id="snBountyFetchBtn" class="px-3.5 py-2 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold text-xs transition">⚡ Баунти SN</button>
+          <button type="button" id="ghFetchBtn" class="px-3.5 py-2 rounded-lg bg-purple-950 hover:bg-purple-900 text-purple-200 font-semibold text-xs border border-purple-800 transition">🐙 Загрузить задачи GitHub</button>
+          <button type="button" id="toggleAddBountyBtn" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs border border-zinc-700 transition">➕ Своя задача</button>
+          <button type="button" id="exportTrackerCsvBtn" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[#FADA5E] font-semibold text-xs border border-zinc-700 transition">📥 Трекер в CSV</button>
+        </div>
+        <label class="flex items-center gap-2 text-zinc-300">
+          <input id="ghAllowToggle" type="checkbox" class="accent-[#FADA5E]" />
+          <span>Разрешить запросы к GitHub (api.github.com) — только по кнопке, без токена</span>
+        </label>
+        <div id="snBountyStatusLine" class="text-[11px] font-mono text-zinc-400">SN: не загружено.</div>
+        <div id="ghStatusLine" class="text-[11px] font-mono text-zinc-400">GitHub: не загружено.</div>
+        <div id="ghClearnetConfirm" class="hidden bg-amber-950/60 border border-amber-600/60 rounded-lg p-3 space-y-2">
+          <p class="text-amber-200 font-semibold">⚠️ Tor выключен</p>
+          <p class="text-zinc-300">Запрос пойдёт к GitHub напрямую: GitHub (Microsoft) увидит ваш IP-адрес и время запроса. Включите Tor на вкладке «Rust Ядро», чтобы этого избежать.</p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="ghClearnetYes" class="px-3 py-1.5 rounded-lg bg-amber-500/25 text-[#FADA5E] border border-[#FADA5E] font-semibold">Отправить без Tor</button>
+            <button type="button" id="ghClearnetNo" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200">Отмена</button>
+          </div>
+        </div>
+        <div id="addBountyForm" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+          <input id="newBountyTitle" type="text" placeholder="Название задачи" class="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]" />
+          <input id="newBountyUrl" type="text" placeholder="Ссылка (https://…)" class="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+          <input id="newBountySats" type="number" min="0" placeholder="Награда, sats" class="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+          <div class="flex gap-2">
+            <input id="newBountyHours" type="number" min="0" step="0.5" placeholder="Часов" class="flex-1 min-w-0 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+            <button type="button" id="addBountyBtn" class="px-3 py-2 rounded-lg bg-[#FADA5E] text-black font-semibold text-xs">Добавить</button>
+          </div>
+        </div>
+        <p class="text-[11px] text-zinc-500">Суммы GitHub — по таблице README Stacker News: метка difficulty (20k / 100k / 250k / 500k / 1M sats) × priority (×0.5 / ×1.5 / ×2 / ×3). Это верхняя граница: за каждую существенную правку после ревью снимается 10%, выплата на усмотрение SN. Задачи без метки difficulty показаны без суммы. Трекер хранится только на этом компьютере.</p>
+      </div>
+
+      <!-- Bounty Cards Grid -->
+      <div id="bountyCardsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <!-- ==================== TAB 3: TERRITORY ECONOMICS & ROI ==================== -->
+    <section id="tab-territories" class="tab-panel hidden space-y-6">
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="max-w-3xl space-y-1">
+            <h2 class="text-base font-bold text-white">🗺️ Реальная экономика территорий</h2>
+            <p class="text-xs text-zinc-400 leading-relaxed">Данные самого Stacker News (запрос topSubs): сколько основатель фактически получил за период, сколько назаппали авторам, сколько вышло постов — и окупает ли территория свой тариф. Доход приводится к 30 дням, чтобы сравнивать с ценой тарифа.</p>
+            <p class="text-[11px] text-zinc-500">Тарифы SN: 50k sats в месяц, 500k в год или 3M разово. Основатель получает 21% запов и по умолчанию 70% платы за посты и бусты; эту долю можно менять для каждой территории, поэтому здесь берётся только фактический доход.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <select id="terrPeriodSelect" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+              <option value="week">за неделю</option>
+              <option value="month" selected>за месяц</option>
+              <option value="year">за год</option>
+              <option value="forever">за всё время</option>
+            </select>
+            <button type="button" id="terrLoadBtn" class="px-3.5 py-2 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold text-xs transition">⬇ Загрузить с SN</button>
+          </div>
+        </div>
+        <div id="terrStatusLine" class="text-[11px] font-mono text-zinc-400">Не загружено.</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Территорий</div>
+            <div id="terrKpiCount" class="text-xl font-extrabold font-mono text-white">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Доход всех основателей за период</div>
+            <div id="terrKpiRevenue" class="text-xl font-extrabold font-mono text-[#FADA5E]">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Окупают свой тариф</div>
+            <div id="terrKpiCovering" class="text-xl font-extrabold font-mono text-emerald-400">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Медианный доход / 30 дней</div>
+            <div id="terrKpiMedian" class="text-xl font-extrabold font-mono text-sky-400">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-sm font-bold text-white">Доход основателя и цена тарифа, 30 дней (топ-12)</h3>
+        </div>
+        <div class="relative h-64"><canvas id="territoryRoiChart"></canvas></div>
+      </div>
+
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <input id="terrTableSearch" type="text" placeholder="Фильтр по ~территории или @основателю..."
+            class="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]" />
+          <select id="terrSortSelect" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="revenue">💰 По доходу основателя</option>
+            <option value="net">📈 По чистому итогу / 30 дней</option>
+            <option value="stacked">⚡ По запам</option>
+            <option value="items">📝 По числу постов</option>
+            <option value="post_cost">🏷️ По цене поста (дешевле)</option>
+          </select>
+          <label class="inline-flex items-center gap-1.5 text-zinc-300">
+            <input id="terrOnlyCovering" type="checkbox" class="accent-[#FADA5E]" />
+            <span>Только окупающиеся</span>
+          </label>
+        </div>
+        <div class="overflow-x-auto sn-scroll">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-zinc-400 border-b border-zinc-800">
+                <th class="py-2 px-2">Территория</th>
+                <th class="py-2 px-2">Основатель</th>
+                <th class="py-2 px-2 text-right">Пост / коммент</th>
+                <th class="py-2 px-2">Тариф</th>
+                <th class="py-2 px-2 text-right">Доход за период</th>
+                <th class="py-2 px-2 text-right">Доход / 30 дн.</th>
+                <th class="py-2 px-2 text-right">Тариф / 30 дн.</th>
+                <th class="py-2 px-2 text-right">Итог / 30 дн.</th>
+                <th class="py-2 px-2 text-right">Запы</th>
+                <th class="py-2 px-2 text-right">Постов</th>
+              </tr>
+            </thead>
+            <tbody id="territoryTableBody" class="divide-y divide-zinc-800/60 font-mono"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: POST STUDIO, PRIVACY LINK SANITIZER & SCHEDULER ==================== -->
+    <section id="tab-studio" class="tab-panel hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left: URL Sanitizer + Post Composer -->
+        <div class="lg:col-span-7 bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-5">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>🛡️ Санитайзер ссылок & Анти-Дюп (Решение Issue #2664)</span>
+            </h2>
+            <p class="text-xs text-zinc-400 mt-0.5">Удаляет трекеры (<code class="text-zinc-300">utm_*</code>, <code class="text-zinc-300">ref</code>, <code class="text-zinc-300">s=20</code>) и конвертирует <code class="text-zinc-300">x.com</code> / <code class="text-zinc-300">reddit.com</code> / <code class="text-zinc-300">medium.com</code> в приватные зеркала (<code class="text-[#FADA5E]">xcancel.com</code>, <code class="text-[#FADA5E]">nitter.net</code>, <code class="text-[#FADA5E]">redlib</code>, <code class="text-[#FADA5E]">scribe.rip</code>).</p>
+          </div>
+
+          <div class="space-y-3 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input id="rawUrlInput" type="text"
+                placeholder="Вставьте ссылку для очистки и проверки..."
+                class="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+              <select id="privacyFrontendSelect" class="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="xcancel">x.com → xcancel.com (Issue #2664)</option>
+                <option value="nitter">x.com → nitter.net</option>
+                <option value="clean_only">Только удалить UTM/трекеры</option>
+                <option value="scribe">medium.com → scribe.rip</option>
+                <option value="redlib">reddit.com → Redlib</option>
+              </select>
+              <input id="privacyFrontendInstance" type="text" spellcheck="false" autocomplete="off"
+                placeholder="Свой инстанс Nitter/Redlib (необяз.)"
+                title="Публичные инстансы Nitter и Redlib часто отключаются. Укажите голое имя хоста, например nitter.example.org"
+                class="bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+              <button type="button" id="sanitizeUrlBtn" class="px-4 py-2 rounded-lg bg-[#FADA5E] text-black font-semibold text-xs whitespace-nowrap">
+                ✨ Очистить URL
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs">
+              <span id="sanitizedUrlOutput" class="font-mono text-emerald-400 truncate"></span>
+              <div class="flex items-center gap-2 shrink-0">
+                <span id="dupeCheckBadge" class="text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">✅ Дубликатов в ленте не найдено</span>
+                <button type="button" id="copyCleanUrlBtn" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200">Копировать</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Post Draft Composer -->
+          <div class="space-y-3 border-t border-zinc-800 pt-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white">✍️ Конструктор поста с авто-проверкой Оглавления (Auto-TOC)</h3>
+              <span id="charCountBadge" class="text-xs font-mono text-zinc-400">Заголовок: 56 симв. (Оптимально)</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="sm:col-span-2">
+                <label for="draftTitleInput" class="block text-[11px] text-zinc-400 mb-1">Заголовок поста (рекомендуется 40–80 символов без кликбейта)</label>
+                <input id="draftTitleInput" type="text"
+                  placeholder="Заголовок поста"
+                  class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FADA5E]" />
+              </div>
+              <div>
+                <label for="draftTerritorySelect" class="block text-[11px] text-zinc-400 mb-1">Целевая территория</label>
+                <select id="draftTerritorySelect" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                  <option value="bitcoin" data-cost="">~bitcoin</option>
+                  <option value="devs" data-cost="">~devs</option>
+                  <option value="lightning" data-cost="">~lightning</option>
+                  <option value="nostr" data-cost="">~nostr</option>
+                  <option value="meta" data-cost="">~meta</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label for="draftBodyInput" class="block text-[11px] text-zinc-400 mb-1">Текст поста (Markdown — используйте 2+ подзаголовка ##, чтобы Stacker News автоматически сгенерировал оглавление TOC)</label>
+              <textarea id="draftBodyInput" rows="7" placeholder="## Раздел&#10;Текст поста в Markdown…"
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-xs font-mono text-zinc-100 focus:outline-none focus:border-[#FADA5E]"></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <label for="draftBoostInput" class="block text-[11px] text-zinc-400 mb-1">Boost (продвижение, кратно 1000 sats)</label>
+                <input id="draftBoostInput" type="number" value="0" min="0" step="1000"
+                  class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div>
+                <label for="draftScheduleTime" class="block text-[11px] text-zinc-400 mb-1">Запланировать слот (Discussion #3014)</label>
+                <input id="draftScheduleTime" type="datetime-local" value="2026-10-26T14:00"
+                  class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div class="flex gap-2">
+                <button type="button" id="saveDraftBtn" class="flex-1 py-2 px-3 rounded-lg bg-[#FADA5E] text-black font-semibold text-xs">
+                  💾 В очередь
+                </button>
+                <button type="button" id="copyMarkdownBtn" class="py-2 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs">
+                  📋 Копировать MD
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Live TOC & Quality Audit + Scheduled Queue & Heatmap -->
+        <div class="lg:col-span-5 space-y-5">
+          <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 class="text-sm font-bold text-white">🔍 Аудит поста & Авто-Оглавление (SN Guide Check)</h3>
+              <span id="postTotalCostBadge" class="font-mono text-xs px-2.5 py-1 rounded bg-amber-500/10 text-[#FADA5E] border border-amber-500/20">Итого: 50 sats</span>
+            </div>
+
+            <div id="tocPreviewBox" class="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1.5 text-xs"></div>
+            <div id="draftOpsecGuardBox" class="bg-zinc-900 border border-emerald-500/30 rounded-lg p-3 space-y-1.5 text-xs"></div>
+            <button type="button" id="scrubDraftPathsBtn" class="w-full py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-mono text-emerald-300 transition">
+              🧼 OpSec Scrubber: Удалить пути ОС (/home/user, C:\Users\...) и скрыть секреты в черновике
+            </button>
+
+          </div>
+
+          <!-- Saved Drafts Queue -->
+          <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white">📅 Очередь запланированных черновиков (<span id="draftQueueCount">0</span>)</h3>
+              <button type="button" id="exportIcsBtn" class="text-xs px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[#FADA5E] font-medium">
+                📆 Скачать .ICS напоминание
+              </button>
+            </div>
+            <div id="draftQueueList" class="space-y-2.5"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: STACKER ANALYTICS & CSV EXPORT ==================== -->
+    <section id="tab-analytics" class="tab-panel hidden space-y-6">
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="max-w-2xl">
+            <h2 class="text-base font-bold text-white">📊 Статистика стакера</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">Публичная статистика любого пользователя Stacker News за день, неделю, месяц, год и всё время: сколько собрал и потратил, сколько опубликовал, серии. Если человек скрыл статистику в настройках SN, приложение так и покажет.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input id="stackerNameInput" type="text" spellcheck="false" autocomplete="off" placeholder="@ник"
+              class="w-40 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+            <button type="button" id="stackerLoadBtn" class="px-3.5 py-2 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold text-xs">🔍 Загрузить с SN</button>
+            <button type="button" id="downloadAnalyticsCsvBtn" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[#FADA5E] font-semibold text-xs border border-zinc-700">📥 CSV</button>
+          </div>
+        </div>
+        <div id="stackerStatusLine" class="text-[11px] font-mono text-zinc-400">Введите ник и нажмите «Загрузить».</div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5">
+            <div class="text-[11px] text-zinc-400">Собрано за всё время</div>
+            <div id="profTotalStacked" class="text-xl font-extrabold font-mono text-[#FADA5E] mt-1">—</div>
+            <div id="profTotalStackedUsd" class="text-[11px] font-mono text-zinc-400"></div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5">
+            <div class="text-[11px] text-zinc-400">Собрано за 30 дней / потрачено</div>
+            <div id="profMonth" class="text-xl font-extrabold font-mono text-white mt-1">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5">
+            <div class="text-[11px] text-zinc-400">Постов и комментариев (всего)</div>
+            <div id="profItems" class="text-xl font-extrabold font-mono text-emerald-400 mt-1">—</div>
+            <div id="profTerritories" class="text-[11px] text-zinc-400"></div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5">
+            <div class="text-[11px] text-zinc-400">Серия / рекорд</div>
+            <div id="profStreak" class="text-xl font-extrabold font-mono text-sky-400 mt-1">—</div>
+            <div id="profMeta" class="text-[11px] text-zinc-400 mt-0.5"></div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-300 mb-3">Собрано и потрачено по периодам</h3>
+          <div class="relative h-64"><canvas id="stackerHistoryChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 6: LIVE GRAPHQL PLAYGROUND ==================== -->
+    <section id="tab-graphql" class="tab-panel hidden space-y-6">
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-white">⚡ Песочница публичного GraphQL API Stacker News (<code class="text-[#FADA5E]">https://stacker.news/api/graphql</code>)</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">Готовые шаблоны запросов для разработчиков ботов, виджетов, Nostr-мостов и мобильных клиентов. Запрос к <code class="text-zinc-300">stacker.news/api/graphql</code> идёт только через Rust-клиент (allowlist, Tor по желанию).</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="gqlPresetSelect" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+              <option value="hot_items">🔥 Топ постов главной ленты (items)</option>
+              <option value="sub_devs">💻 Посты территории ~devs</option>
+              <option value="user_profile">👤 Профиль стакера (@k00b)</option>
+              <option value="territories_list">🗺️ Список активных территорий (subs)</option>
+            </select>
+            <button type="button" id="runGqlQueryBtn" class="px-4 py-2 rounded-lg bg-[#FADA5E] text-black font-bold text-xs">
+              ▶ Выполнить запрос
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label for="gqlQueryTextarea" class="block text-xs font-mono text-zinc-400 mb-1">GraphQL Query Payload</label>
+            <textarea id="gqlQueryTextarea" rows="14"
+              class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-xs font-mono text-amber-200 focus:outline-none focus:border-[#FADA5E]"></textarea>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-mono text-zinc-400">JSON Response</span>
+              <button type="button" id="copyGqlResponseBtn" class="text-xs text-[#FADA5E] hover:underline">Копировать JSON</button>
+            </div>
+            <pre id="gqlResponseOutput" class="w-full h-[308px] overflow-auto sn-scroll bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-xs font-mono text-emerald-400"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+
+    <!-- ==================== TAB 8: SEEDSCAN & OPSEC AUDITOR (BY UBRO-DEV) ==================== -->
+    <section id="tab-seedscan" class="tab-panel hidden space-y-6">
+      <div class="bg-[#1b1b1f] rounded-2xl p-6 space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div class="space-y-1 max-w-3xl">
+            <div class="inline-flex items-center gap-2 text-xs font-mono text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-400/30">
+              🛡️ <span id="seedscanEngineVersion">SeedScan</span> · Author: UBro-dev · 100% Offline & Read-Only
+            </div>
+            <h2 id="seedscanTitle" class="text-lg font-extrabold text-white">Поиск утечек Seed-фраз на диске и защита от деанонимизации (SeedScan + OpSec Guard)</h2>
+            <p id="seedscanSubtitle" class="text-xs text-zinc-300 leading-relaxed">
+              Люди записывают сид-фразу в <code class="text-[#FADA5E]">seed.txt</code> «на минутку» и забывают её в <code class="text-white">Downloads</code>, <code class="text-white">Dropbox</code> или случайно вставляют <code class="text-white">nsec1</code> / <code class="text-white">nostr+walletconnect://</code> / путь с именем пользователя ОС в лог на Stacker News. <strong>SeedScan от UBro-dev</strong> проверяет контрольные суммы (BIP39, Base58Check, Bech32) и маскирует секреты (<code class="text-emerald-300">abandon ***** about</code>).
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="runDiskSeedscanBtn" class="px-4 py-2.5 rounded-xl bg-[#FADA5E] hover:bg-amber-300 text-black font-extrabold text-xs shadow-lg transition">
+              🔍 Сканировать папки ПК (SeedScan)
+            </button>
+          </div>
+        </div>
+
+        <!-- Three Ironclad Guarantees of UBro-dev SeedScan -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="bg-zinc-900 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-emerald-400 flex items-center gap-1.5">🔒 1. Никогда не трогает сеть</div>
+            <p class="text-zinc-300">Сканер работает на 100% локально. Детекторы <code class="text-white">bip39</code>, <code class="text-white">bs58</code>, <code class="text-white">bech32</code> и <code class="text-white">walkdir</code> не открывают сокетов и ничего не отправляют.</p>
+          </div>
+          <div class="bg-zinc-900 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-sky-400 flex items-center gap-1.5">📖 2. Строго Read-Only</div>
+            <p class="text-zinc-300">Никогда не изменяет, не перемещает и не удаляет ваши файлы. Вы сами решаете, что делать с обнаруженной утечкой.</p>
+          </div>
+          <div class="bg-zinc-900 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-[#FADA5E] flex items-center gap-1.5">🎭 3. Маскирование и валидация чек-сумм</div>
+            <p class="text-zinc-300">Обычный текст из 12 английских слов игнорируется — срабатывает только валидная контрольная сумма, а вывод всегда скрыт звездочками.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <!-- Left: Local Folder Scan Config & Results -->
+          <div class="lg:col-span-6 bg-zinc-900 rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white">📂 Сканер папок на диске (Windows & Linux)</h3>
+              <span id="seedscanStatusBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">Готов (Offline)</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+              <div class="sm:col-span-2">
+                <label for="seedscanPathsInput" class="block text-zinc-400 mb-1">Целевые директории</label>
+                <input id="seedscanPathsInput" type="text" value="~/Downloads, ~/Documents, ~/Desktop, ~/OneDrive"
+                  class="w-full rounded-lg px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div>
+                <label for="seedscanMaxSizeInput" class="block text-zinc-400 mb-1">Лимит файла (МБ)</label>
+                <input id="seedscanMaxSizeInput" type="number" value="8" min="1" max="128"
+                  class="w-full rounded-lg px-3 py-2 text-xs font-mono text-white" />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300">
+              <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input id="seedscanHiddenToggle" type="checkbox" class="accent-[#FADA5E] rounded" />
+                <span>Включать скрытые файлы (<code>--hidden</code>)</span>
+              </label>
+              <span class="font-mono text-[11px] text-zinc-400">Пропуск: node_modules, target, .git, бинарники</span>
+            </div>
+
+            <pre id="seedscanDiskOutput" class="w-full h-64 overflow-auto sn-scroll bg-black/65 border border-white/15 rounded-xl p-3.5 text-xs font-mono text-emerald-300 leading-relaxed"></pre>
+          </div>
+
+          <!-- Right: Live Secret, NWC, BOLT11 & Deanonymization Inspector -->
+          <div class="lg:col-span-6 bg-zinc-900 rounded-xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-bold text-white">🧪 Инспектор секретов, NWC и деанонимизации</h3>
+                <p class="text-[11px] text-zinc-400">Проверьте любой конфиг, лог или инвойс на утечку сид-фраз, ключей и метаданных ОС</p>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button type="button" id="loadSampleLeakBtn" class="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-[11px] font-mono text-[#FADA5E]">
+                  Тест-вектор BIP39/Nostr
+                </button>
+                <button type="button" id="runLiveTextScanBtn" class="px-3 py-1 rounded bg-[#FADA5E] text-black font-bold text-xs">
+                  Проверить
+                </button>
+              </div>
+            </div>
+
+            <textarea id="seedscanLiveTextarea" rows="5"
+              class="w-full rounded-xl p-3 text-xs font-mono text-zinc-100"
+              placeholder="Вставьте текст, лог или конфиг для локальной проверки...">backup note: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
+nostr key: nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5
+wallet uri: nostr+walletconnect://b889ff5b1513b641e2a139f661a661364979c5beee91842f8f0ef42ab558e9d4?relay=wss://relay.damus.io&secret=71a8c14c1407c113601079c4302dab36460f0ccd0ad506f1f2dc73b5100e4f3c
+error log at /home/satoshi_real_name/lightning/config.conf</textarea>
+
+            <div id="seedscanLiveFindingsList" class="space-y-2 max-h-56 overflow-y-auto sn-scroll"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 7: RUST CORE & CROSS-PLATFORM BUILD (WINDOWS & LINUX) ==================== -->
+    <section id="tab-rustcore" class="tab-panel hidden space-y-6">
+      <div class="bg-[#1b1b1f] rounded-2xl p-6 space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div class="space-y-1 max-w-3xl">
+            <h2 class="text-lg font-extrabold text-white">⚙️ Настройки и приватность</h2>
+            <p class="text-xs text-zinc-300 leading-relaxed">Все сетевые запросы делает Rust-клиент: только stacker.news и его официальный .onion (плюс api.github.com, если вы его разрешили на вкладке баунти), проверка на каждом редиректе, Tor через socks5h, режим Airgap. Интерфейс сам в сеть не ходит.</p>
+          </div>
+          <button type="button" id="wipeLocalDataBtn" class="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-400/30 font-semibold text-xs transition">
+            🧹 Сбросить локальный кэш (Zero-Trace)
+          </button>
+        </div>
+
+          <div class="bg-zinc-900 rounded-xl p-5 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+              <div>
+                <h3 id="torPanelTitle" class="text-sm font-bold text-purple-300 flex items-center gap-2">
+                  <span>🧅 Маршрутизация через Tor (SOCKS5h) и скрытый сервис .onion</span>
+                </h3>
+                <p id="torPanelSubtitle" class="text-xs text-zinc-400 mt-0.5">
+                  Перенаправляет все GraphQL-запросы Rust через <code class="text-purple-200">reqwest::Proxy::all("socks5h://...")</code> без утечек DNS напрямую на официальное зеркало Stacker News Onion v3.
+                </p>
+              </div>
+              <label class="inline-flex items-center gap-2 cursor-pointer bg-purple-950/60 border border-purple-500/40 px-3 py-1.5 rounded-lg text-xs font-bold text-purple-200">
+                <input id="torEnableCheckbox" type="checkbox" class="accent-[#FADA5E] rounded" />
+                <span id="torToggleCheckboxLabel">Tor SOCKS5h Активен</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label for="torProxyPresetSelect" id="torProxyPresetLabel" class="block text-zinc-300 mb-1">Профиль прокси Tor (Remote DNS socks5h)</label>
+                <select id="torProxyPresetSelect" class="w-full rounded-lg px-3 py-2 text-xs text-white font-mono">
+                  <option value="socks5h://127.0.0.1:9050">socks5h://127.0.0.1:9050 (Tor System Daemon)</option>
+                  <option value="socks5h://127.0.0.1:9150">socks5h://127.0.0.1:9150 (Tor Browser Bundle)</option>
+                  <option value="socks5h://127.0.0.1:9052">socks5h://127.0.0.1:9052 (IsolateClientAddr Circuit)</option>
+                </select>
+              </div>
+              <div>
+                <label for="torCustomProxyInput" id="torCustomProxyLabel" class="block text-zinc-300 mb-1">Свой адрес SOCKS5h / Arti (Rust Tor)</label>
+                <input id="torCustomProxyInput" type="text" value="socks5h://127.0.0.1:9050"
+                  class="w-full rounded-lg px-3 py-2 text-xs font-mono text-purple-200" />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <button type="button" id="torDetectBtn" class="px-3 py-1.5 rounded-lg bg-purple-600/40 hover:bg-purple-600/60 border border-purple-400/50 text-purple-100 font-semibold transition">🔎 Найти Tor</button>
+              <span id="torDetectStatus" class="text-zinc-400">Проверяет порты 9150 (Tor Browser) и 9050 (служба tor) на этом компьютере.</span>
+            </div>
+
+            <div class="flex flex-wrap items-start gap-2 text-xs">
+              <span id="onionStatusLine" class="text-zinc-300 flex-1 min-w-[16rem]">Состояние .onion станет известно после первой загрузки через Tor.</span>
+              <button type="button" id="onionRetryBtn" class="hidden px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-100 font-semibold transition">↻ Попробовать .onion снова</button>
+            </div>
+
+            <label class="flex items-start gap-2 text-xs text-zinc-300">
+              <input id="onionFallbackCheckbox" type="checkbox" checked class="mt-0.5 accent-[#FADA5E]" />
+              <span>Если .onion не отвечает, повторить запрос к stacker.news через тот же Tor. IP остаётся скрытым; SN увидит выходной узел Tor вместо onion-цепочки.</span>
+            </label>
+
+            <label class="flex items-start gap-2 text-xs text-zinc-300">
+              <input id="stripUaCheckbox" type="checkbox" checked class="mt-0.5 accent-[#FADA5E]" />
+              <span>Не отправлять User-Agent в Stacker News. Если снять галочку, отправляется UA как у Tor Browser (Firefox ESR). GitHub без UA не отвечает, поэтому ему UA отправляется всегда.</span>
+            </label>
+
+            <div class="bg-black/50 border border-white/10 rounded-lg p-3 space-y-1.5 text-xs font-mono">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-zinc-400">Active Endpoint:</span>
+                <span id="activeEndpointDisplay" class="text-emerald-400 truncate">https://stacker.news/api/graphql</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-zinc-400">SN Official Onion v3:</span>
+                <span class="text-purple-300 truncate">http://snsnsnya6h3ot563f3p566wuhfoklkg5f62hokdlaqzcaub3gf4xlxyd.onion</span>
+              </div>
+              <div class="flex items-center justify-between gap-2 pt-1">
+                <span class="text-zinc-400">Telemetry / Trackers / Fonts Ping:</span>
+                <span class="text-emerald-400 font-bold">0 requests (100% Airgapped Telemetry)</span>
+              </div>
+            </div>
+          </div>
+
+        <!-- Interactive Rust Source Code Inspector -->
+        <div class="space-y-3 pt-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <label for="rustFileSelect" class="text-xs font-bold text-zinc-200">Просмотр исходного модуля Rust:</label>
+              <select id="rustFileSelect" class="rounded-lg px-3 py-1.5 text-xs text-white font-mono">
+                <option value="detect_rs">src-tauri/src/detect.rs (SeedScan Checksum Detectors by UBro-dev)</option>
+                <option value="seedscan_rs">src-tauri/src/seedscan.rs (Offline Disk & Draft Scanner by UBro-dev)</option>
+                <option value="graphql_rs">src-tauri/src/graphql.rs (Privacy-by-Design Allowlist + Tor SOCKS5h)</option>
+                <option value="sn_rs">src-tauri/src/sn.rs (Live Stacker News data: feed, stackers, territories)</option>
+                <option value="github_rs">src-tauri/src/github.rs (PR bounty radar, GitHub firewall)</option>
+                <option value="lib_rs">src-tauri/src/lib.rs (Tauri v2 IPC commands)</option>
+                <option value="sanitizer_rs">src-tauri/src/sanitizer.rs (URL Sanitizer & xcancel Rewrite)</option>
+                <option value="cargo_toml">src-tauri/Cargo.toml (UBro-dev Package & Crate Dependencies)</option>
+                <option value="license_mit">LICENSE (MIT License signed by UBro-dev)</option>
+                <option value="third_party">THIRD-PARTY.md (лицензии всех зависимостей)</option>
+                <option value="disclaimer">DISCLAIMER.md (отказ от гарантий и границы применения)</option>
+              </select>
+            </div>
+            <button type="button" id="copyRustSourceBtn" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-[#FADA5E] transition">
+              📋 Копировать код модуля Rust
+            </button>
+          </div>
+          <pre id="rustCodeViewer" class="w-full h-80 overflow-auto sn-scroll bg-black/60 border border-white/15 rounded-xl p-4 text-xs font-mono text-orange-200 leading-relaxed"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-800/80 bg-[#121214] py-4 px-4 mt-8">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+      <div>
+        <span class="text-zinc-200 font-bold">StackerPulse ⚡ + SeedScan 🛡️</span> — Author: <strong class="text-[#FADA5E]">UBro-dev</strong> (MIT License). Built for <a href="https://stacker.news" target="_blank" rel="noopener noreferrer" class="text-[#FADA5E] hover:underline">stacker.news</a> & <a href="https://github.com/stackernews/stacker.news" target="_blank" rel="noopener noreferrer" class="text-[#FADA5E] hover:underline">stackernews/stacker.news</a>.
+      </div>
+      <div class="font-mono text-[11px] text-emerald-400">
+        Privacy by Design · Strict Host Allowlist · Tor SOCKS5h · Zero Telemetry
+      </div>
+    </div>
+  </footer>
+
+  <script src="i18n.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

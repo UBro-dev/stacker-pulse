@@ -1,0 +1,90 @@
+# Runs on every push to main and every pull request: formatting, lints and
+# the full test suite on all three platforms the app ships for.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Formatting
+        if: runner.os == 'Linux'
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --release --all-targets -- -D warnings
+
+      - name: Tests
+        working-directory: src-tauri
+        run: cargo test --release
+
+      - name: Binaries carry no builder paths
+        # Same flags as release.yml and build_*.sh. `tauri/custom-protocol`
+        # gives the same embedded strings as `tauri build`, without bundling.
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          home="${USERPROFILE:-$HOME}"
+          sep=$'\x1f'
+          export CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=${home}=~${sep}--remap-path-prefix=${GITHUB_WORKSPACE}=."
+          cargo build --release --bins --features tauri/custom-protocol
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          for b in "target/release/stacker-pulse$ext" "target/release/seedscan-cli$ext"; do
+            if grep -aqF "$home" "$b"; then
+              echo "::error::$b still contains $home"; exit 1
+            fi
+            echo "clean: $b"
+          done
+
+  licences:
+    name: THIRD-PARTY.md is current
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Regenerate and compare
+        run: |
+          python3 tools/gen-third-party.py
+          git diff --exit-code -- THIRD-PARTY.md || {
+            echo "::error::THIRD-PARTY.md is stale. Run 'python tools/gen-third-party.py' and commit the result."
+            exit 1
+          }

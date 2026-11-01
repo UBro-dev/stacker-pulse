@@ -1,0 +1,56 @@
+# Author: UBro-dev
+# License: MIT (Copyright (c) 2026 UBro-dev)
+
+[package]
+name = "stacker-pulse"
+version = "3.1.0"
+description = "StackerPulse & SeedScan — Privacy-by-Design Rust Command Center & Offline Secret Leak Scanner for Stacker News"
+authors = ["UBro-dev"]
+license = "MIT"
+edition = "2021"
+default-run = "stacker-pulse"
+rust-version = "1.77"
+
+[lib]
+name = "stacker_pulse_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "stacker-pulse"
+path = "src/main.rs"
+
+[[bin]]
+name = "seedscan-cli"
+path = "src/seedscan_cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = ["macos-private-api"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["full"] }
+# Strict Privacy-by-Design HTTP/SOCKS5h client (rustls-tls + Tor socks5h)
+reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls", "socks"] }
+url = "2.5"
+chrono = { version = "0.4", features = ["serde"] }
+window-vibrancy = "0.5"
+thiserror = "1.0"
+# SeedScan offline secret & checksum validation crates (by UBro-dev)
+clap = { version = "4.5", features = ["derive"] }
+walkdir = "2.5"
+regex = "1.11"
+bip39 = "2.1"
+bs58 = { version = "0.5", features = ["check"] }
+bech32 = "0.9"
+# Solana keypairs: the last 32 bytes must be the ed25519 public key of the
+# first 32, which tells a real key from a signature or random bytes.
+ed25519-dalek = { version = "2.1", default-features = false, features = ["std"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
