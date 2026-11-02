@@ -18,10 +18,19 @@ cd "$ROOT/src-tauri"
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 cargo tauri build --target universal-apple-darwin
 
-BIN=target/universal-apple-darwin/release/stacker-pulse
+# The command-line scanner is opt-in and ships separately: build both
+# architectures and merge them, as CI does.
+for t in aarch64-apple-darwin x86_64-apple-darwin; do
+  cargo build --release --features cli --bin seedscan-cli --target "$t"
+done
+CLI=target/universal-apple-darwin/release/seedscan-cli
+lipo -create -output "$CLI" \
+  target/aarch64-apple-darwin/release/seedscan-cli \
+  target/x86_64-apple-darwin/release/seedscan-cli
+
 for p in "$HOME" ${CARGO_HOME:+"$CARGO_HOME"}; do
-  if grep -aqF "$p" "$BIN"; then
+  if grep -aqF "$p" target/universal-apple-darwin/release/stacker-pulse "$CLI"; then
     echo "The build still contains $p - do not distribute it." >&2; exit 1
   fi
 done
-echo "Done: src-tauri/target/universal-apple-darwin/release/bundle/ (no home-folder paths inside)"
+echo "Done: src-tauri/target/universal-apple-darwin/release/bundle/ and $CLI (no home-folder paths inside)"

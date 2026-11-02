@@ -9,6 +9,11 @@
 // Keys are the Russian text with whitespace collapsed to single spaces.
 
 const RU_EN = {
+  // Support the developer
+  "💛 Поддержать разработчика": "💛 Support the developer",
+  "Программа бесплатна и останется бесплатной. Пожертвование — добровольный подарок: оно не покупает поддержку или функции и не возвращается.": "The app is free and will stay free. A donation is a voluntary gift: it does not buy support or features and cannot be refunded.",
+  "После вставки сверьте первые и последние шесть символов адреса: вирусы-клипперы подменяют адреса в буфере обмена. Те же адреса — в DONATE.md репозитория github.com/UBro-dev/stacker-pulse (коммиты подписаны). Разработчик никогда не попросит seed-фразу или приватный ключ.": "After pasting, compare the first and last six characters of the address: clipboard malware swaps addresses. The same addresses are in DONATE.md in github.com/UBro-dev/stacker-pulse (signed commits). The developer will never ask for a seed phrase or a private key.",
+
   // Header and tabs
   "StackerPulse ⚡ — Командный центр и аналитика для Stacker News": "StackerPulse ⚡ — Command Center & Analytics for Stacker News",
   "Privacy-by-Design · Airgap: ВЫКЛ": "Privacy-by-Design · Airgap: OFF",
@@ -358,6 +363,7 @@ const RU_EN = {
   "↻ Попробовать .onion снова": "↻ Try the .onion again",
   "THIRD-PARTY.md (лицензии всех зависимостей)": "THIRD-PARTY.md (licences of every dependency)",
   "DISCLAIMER.md (отказ от гарантий и границы применения)": "DISCLAIMER.md (warranty disclaimer and scope of use)",
+  "DONATE.md (адреса для пожертвований)": "DONATE.md (donation addresses)",
   // Strings set by app.js without numbers
   "Tor: ВКЛ (.onion SOCKS5h)": "Tor: ON (.onion SOCKS5h)",
   "Маршрут: Tor SOCKS5h (.onion v3)": "Route: Tor SOCKS5h (.onion v3)"

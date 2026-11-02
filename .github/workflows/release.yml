@@ -149,7 +149,7 @@ jobs:
 
       - name: Tests on this platform
         working-directory: src-tauri
-        run: cargo test --release
+        run: cargo test --release --features cli
 
       - name: Build installers and attach them to the draft
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
@@ -160,6 +160,18 @@ jobs:
           args: ${{ matrix.args }}
           # No package.json in this repo: pin the CLI that builds the bundles.
           tauriScript: npx --yes @tauri-apps/cli@2.12.4
+
+      - name: Build the seedscan CLI
+        # Opt-in binary (`required-features = ["cli"]`), so tauri build skips it.
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cargo build --release --features cli --bin seedscan-cli --target aarch64-apple-darwin
+            cargo build --release --features cli --bin seedscan-cli --target x86_64-apple-darwin
+          else
+            cargo build --release --features cli --bin seedscan-cli
+          fi
 
       - name: No home-folder paths in the shipped binaries
         shell: bash

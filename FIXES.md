@@ -1,3 +1,43 @@
+# StackerPulse v3.1.1 — Support the developer
+
+## One page for donation addresses (`DONATE.md`)
+- New `DONATE.md`: a table of public donation addresses (Monero, USDC on
+  Solana, USDT on Tron, Lightning) with network warnings, a check against
+  clipboard malware, and what a donation is and is not (a voluntary gift, no
+  service, no refund; the software stays MIT whether or not you donate).
+- **It is the only place the addresses are written.** The README links to it,
+  GitHub's *Sponsor* button (`.github/FUNDING.yml`) points to it, and the app
+  embeds it at build time. Changing an address means editing one line.
+- In the app: *Settings and privacy → Support the developer*, one row per
+  address with a Copy button and the network warning. The card stays hidden
+  while no address is set. Nothing is opened or sent; the address is only
+  copied. DONATE.md and `support.rs` are also in the source viewer.
+
+## Every address is checked before it can ship (`src-tauri/src/support.rs`)
+- **Monero:** decoded from Monero's block base58 and checked against its
+  Keccak-256 checksum; main-net standard (4…) and subaddresses (8…) only, no
+  testnet, no integrated addresses. Keccak is implemented in the module (about
+  60 lines) and tested against the published vectors and the Monero General
+  Fund address, so no new dependency and no change to `THIRD-PARTY.md`.
+- **Tron:** Base58Check checksum, `T…`, 34 characters, main-net byte 0x41.
+- **Solana:** must decode to exactly 32 bytes (Solana addresses have no
+  checksum). **A 64-byte value is refused as a private key**, with a message
+  to delete it and never share it.
+- **Lightning:** `name@domain`, lower case; a one-time `lnbc…` invoice is
+  refused.
+- Anything with spaces is refused as a possible seed phrase, and SeedScan
+  itself must find no secret in DONATE.md.
+- `the_shipped_donate_md_is_valid` runs in CI on all three systems and in the
+  release workflow before anything is built, so a typo stops the release
+  instead of sending someone's money to a wrong address.
+
+## Also
+- A test that every file offered in the source viewer is actually embedded.
+
+Tests: 80 library + 22 CLI (`cargo test --release --features cli`).
+
+---
+
 # StackerPulse v3.1.0 — macOS, and releases built by CI
 
 ## macOS
@@ -43,8 +83,9 @@ Pushing tag `vX.Y.Z`:
    current;
 2. creates a **draft** release with notes taken from the top of this file;
 3. on each system: runs the tests, builds the installers with a pinned Tauri
-   CLI (`.msi`, `-setup.exe`, `.deb`, `.AppImage`, `.dmg`), packages
-   `seedscan-cli` with the licence files, and attaches everything;
+   CLI (`.msi`, `-setup.exe`, `.deb`, `.AppImage`, `.dmg`), builds
+   `seedscan-cli` separately and packages it with the licence files, and
+   attaches everything;
 4. publishes `SHA256SUMS.txt` and a **build-provenance attestation** for every
    file (`gh attestation verify <file> --repo …`), which stands in for the
    code-signing certificates a pseudonymous project cannot get;
@@ -122,9 +163,28 @@ removes GitHub's Node 20 deprecation warning.
   adds them.
 - A real Tauri bundle (`.deb`) was built locally to confirm the bundle config:
   version 3.x taken from `Cargo.toml`, `LICENSE`, `THIRD-PARTY.md` and
-  `DISCLAIMER.md` installed next to the app, `seedscan-cli` included.
+  `DISCLAIMER.md` installed next to the app.
 
-Tests: 67 library + 22 CLI.
+### The first macOS release build failed, now fixed
+Tauri puts **every** binary of the package into the bundle, `seedscan-cli`
+included, but a universal macOS build merges only the app binary with `lipo`.
+The bundler then looked for a universal `seedscan-cli` that did not exist and
+stopped (`Failed to copy binary … universal-apple-darwin/release/seedscan-cli`).
+The Tauri CLI source shows the way out: a binary whose `required-features` are
+not enabled is left out of the bundle. `seedscan-cli` is now opt-in
+(`required-features = ["cli"]`):
+- the installers contain only the app, on every system (the `.deb` no longer
+  puts `seedscan-cli` into `/usr/bin`);
+- the CLI ships as its own archive per system, built explicitly
+  (`--features cli`; on macOS for both architectures, then merged);
+- tests, clippy, the leak checks and the build scripts all pass
+  `--features cli`, so the CLI's 22 tests still run everywhere. Running it
+  from source: `cargo run --release --features cli --bin seedscan-cli -- <folders>`.
+
+Verified locally: a real `tauri build --bundles deb` contains only
+`stacker-pulse`, and the same test, clippy and leak commands as CI pass.
+
+Tests: 67 library + 22 CLI (`cargo test --release --features cli`).
 
 ---
 

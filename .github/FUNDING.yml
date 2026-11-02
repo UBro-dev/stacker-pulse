@@ -1,0 +1,3 @@
+# Shows the "Sponsor" button on the repository page. The addresses themselves
+# are kept in one place, DONATE.md, which the app and its tests also read.
+custom: ["https://github.com/UBro-dev/stacker-pulse/blob/main/DONATE.md"]

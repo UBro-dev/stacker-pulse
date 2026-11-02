@@ -16,6 +16,10 @@ $watch = @($env:USERPROFILE) + @($env:CARGO_HOME | Where-Object { $_ })
 
 Set-Location -Path "$PSScriptRoot\src-tauri"
 cargo tauri build --bundles msi,nsis
+if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
+# The command-line scanner is opt-in and ships separately from the installers.
+cargo build --release --features cli --bin seedscan-cli
+if ($LASTEXITCODE -ne 0) { throw "seedscan-cli build failed" }
 
 # Refuse to hand over a binary that still names your account.
 # .NET does not follow Set-Location, so use full paths.
@@ -29,4 +33,4 @@ foreach ($name in @("stacker-pulse.exe", "seedscan-cli.exe")) {
         }
     }
 }
-Write-Host "Done: src-tauri\target\release\bundle\ (no home-folder paths inside)" -ForegroundColor Green
+Write-Host "Done: src-tauri\target\release\bundle\ and seedscan-cli.exe (no home-folder paths inside)" -ForegroundColor Green

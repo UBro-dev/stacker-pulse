@@ -48,8 +48,8 @@ This is a privacy tool, so some things are not up for negotiation:
 
 ```bash
 cd src-tauri
-cargo test --release     # all tests must pass
-cargo clippy --release -- -D warnings
+cargo test --release --features cli     # all tests must pass
+cargo clippy --release --all-targets --features cli -- -D warnings
 cargo fmt --check
 ```
 

@@ -49,11 +49,11 @@ jobs:
 
       - name: Clippy
         working-directory: src-tauri
-        run: cargo clippy --release --all-targets -- -D warnings
+        run: cargo clippy --release --all-targets --features cli -- -D warnings
 
       - name: Tests
         working-directory: src-tauri
-        run: cargo test --release
+        run: cargo test --release --features cli
 
       - name: Binaries carry no builder paths
         # Same flags as release.yml and build_*.sh. `tauri/custom-protocol`
@@ -64,7 +64,7 @@ jobs:
           home="${USERPROFILE:-$HOME}"
           sep=$'\x1f'
           export CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=${home}=~${sep}--remap-path-prefix=${GITHUB_WORKSPACE}=."
-          cargo build --release --bins --features tauri/custom-protocol
+          cargo build --release --bins --features tauri/custom-protocol,cli
           ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
           for b in "target/release/stacker-pulse$ext" "target/release/seedscan-cli$ext"; do
             if grep -aqF "$home" "$b"; then

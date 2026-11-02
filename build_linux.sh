@@ -16,10 +16,12 @@ export CARGO_ENCODED_RUSTFLAGS="$FLAGS"
 
 cd "$ROOT/src-tauri"
 cargo tauri build --bundles appimage,deb
+# The command-line scanner is opt-in and ships separately from the packages.
+cargo build --release --features cli --bin seedscan-cli
 
 for p in "$HOME" ${CARGO_HOME:+"$CARGO_HOME"}; do
   if grep -aqF "$p" target/release/stacker-pulse target/release/seedscan-cli; then
     echo "The build still contains $p - do not distribute it." >&2; exit 1
   fi
 done
-echo "Done: src-tauri/target/release/bundle/ (no home-folder paths inside)"
+echo "Done: src-tauri/target/release/bundle/ and target/release/seedscan-cli (no home-folder paths inside)"

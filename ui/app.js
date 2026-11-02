@@ -127,6 +127,49 @@
       } catch (e) {}
     }
 
+    // Donation addresses: compiled in from DONATE.md and checked by Rust tests.
+    // Shown only when at least one is set; copied, never opened.
+    async function renderSupport() {
+      if (!hasTauriInvoke()) return;
+      let list = [];
+      try {
+        list = await window.__TAURI__.core.invoke('sn_support_addresses');
+      } catch (e) {
+        return;
+      }
+      const card = document.getElementById('supportCard');
+      const box = document.getElementById('supportList');
+      if (!card || !box || !Array.isArray(list) || list.length === 0) return;
+      box.replaceChildren();
+      for (const item of list) {
+        const row = document.createElement('div');
+        row.className = 'bg-black/40 border border-white/10 rounded-lg p-3 space-y-1.5';
+        const head = document.createElement('div');
+        head.className = 'flex flex-wrap items-center justify-between gap-2';
+        const name = document.createElement('span');
+        name.className = 'text-xs font-bold text-zinc-100';
+        name.textContent = item.name;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-[#FADA5E] transition';
+        btn.textContent = L('📋 Копировать', '📋 Copy');
+        btn.addEventListener('click', () => copyTextToClipboard(
+          item.address,
+          L('Адрес скопирован. Сверьте начало и конец после вставки.',
+            'Address copied. Check its start and end after pasting.')));
+        head.append(name, btn);
+        const addr = document.createElement('code');
+        addr.className = 'block text-xs font-mono text-emerald-300 break-all select-all';
+        addr.textContent = item.address;
+        const warn = document.createElement('p');
+        warn.className = 'text-[11px] text-amber-300/90';
+        warn.textContent = L(item.warning_ru, item.warning_en);
+        row.append(head, addr, warn);
+        box.appendChild(row);
+      }
+      card.classList.remove('hidden');
+    }
+
     // SN data commands; afterwards learn whether the onion or the backup route answered.
     async function snInvoke(cmd, args) {
       const r = await window.__TAURI__.core.invoke(cmd, args);
@@ -1627,7 +1670,7 @@
         // Re-render everything that builds text in JS, then swap static text.
         [renderBookmarks, renderBounties, renderTerritoryEconomics, updatePostStudioAudit,
          renderDraftQueue, renderStackerAnalytics, sanitizeUrlNow, renderLiveSeedscanInspector,
-         checkDraftOpsecGuard, renderGhStatus].forEach(fn => { try { fn(); } catch (e) {} });
+         checkDraftOpsecGuard, renderGhStatus, renderSupport].forEach(fn => { try { fn(); } catch (e) {} });
         const gqlOut = document.getElementById('gqlResponseOutput');
         if (gqlOut && gqlOut.textContent.includes('"ready": true')) {
           gqlOut.textContent = JSON.stringify({ hint: L('Нажмите «Выполнить запрос», чтобы отправить запрос через Rust-клиент', 'Press "Run Query" to send the request through the Rust client'), ready: true }, null, 2);
@@ -2164,6 +2207,7 @@ crash dump in C:\Users\UBro_Admin\AppData\Local\lnd.log`;
       renderLiveSeedscanInspector();
       checkDraftOpsecGuard();
       showAppVersion();
+      renderSupport();
 
       // Initial renders
       renderRadar();

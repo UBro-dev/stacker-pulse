@@ -8,6 +8,7 @@ pub mod graphql;
 pub mod sanitizer;
 pub mod seedscan;
 pub mod sn;
+pub mod support;
 
 use detect::Finding;
 use graphql::{NetworkPrivacyConfig, SnGraphqlClient};
@@ -56,6 +57,13 @@ async fn sn_detect_tor() -> Vec<u16> {
 #[tauri::command]
 fn sn_app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+/// Public donation addresses from DONATE.md (embedded at build time, checked
+/// by tests). No network access.
+#[tauri::command]
+fn sn_support_addresses() -> Result<Vec<support::SupportAddress>, String> {
+    support::addresses()
 }
 
 /// Whether SN's onion answered recently: "unknown", "up" or "down".
@@ -191,12 +199,14 @@ fn sn_get_rust_source(name: String) -> Result<&'static str, String> {
         "sn_rs" => include_str!("sn.rs"),
         "lib_rs" => include_str!("lib.rs"),
         "sanitizer_rs" => include_str!("sanitizer.rs"),
+        "support_rs" => include_str!("support.rs"),
         "cargo_toml" => include_str!("../Cargo.toml"),
         "license_mit" => include_str!("../LICENSE"),
         // MIT and Apache-2.0 require the licence text and copyright notices to
         // travel with the binaries, not only with the source.
         "third_party" => include_str!("../../THIRD-PARTY.md"),
         "disclaimer" => include_str!("../../DISCLAIMER.md"),
+        "donate" => support::DONATE_MD,
         _ => return Err(format!("unknown source file: {name}")),
     })
 }
@@ -222,6 +232,7 @@ pub fn run() {
             sn_detect_tor,
             sn_onion_status,
             sn_app_version,
+            sn_support_addresses,
             sn_fetch_stacker,
             sn_fetch_territories,
             sn_execute_graphql,
@@ -257,6 +268,24 @@ mod notice_tests {
             third.matches("| ").count() > 300,
             "dependency table looks short"
         );
+    }
+
+    /// Every file offered in the source viewer must exist in the binary.
+    #[test]
+    fn every_source_viewer_option_resolves() {
+        let html = include_str!("../../ui/index.html");
+        let start = html.find("id=\"rustFileSelect\"").expect("viewer select");
+        let end = start + html[start..].find("</select>").expect("end of select");
+        let mut n = 0;
+        for part in html[start..end].split("<option value=\"").skip(1) {
+            let key = &part[..part.find('"').unwrap()];
+            assert!(
+                super::sn_get_rust_source(key.to_string()).is_ok(),
+                "viewer option {key} has no file"
+            );
+            n += 1;
+        }
+        assert!(n >= 12, "only {n} viewer options found");
     }
 }
 

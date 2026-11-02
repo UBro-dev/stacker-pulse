@@ -3,7 +3,7 @@
 
 [package]
 name = "stacker-pulse"
-version = "3.1.0"
+version = "3.1.1"
 description = "StackerPulse & SeedScan — Privacy-by-Design Rust Command Center & Offline Secret Leak Scanner for Stacker News"
 authors = ["UBro-dev"]
 license = "MIT"
@@ -19,9 +19,17 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "stacker-pulse"
 path = "src/main.rs"
 
+# The command-line scanner is opt-in: `--features cli`. Without
+# `required-features`, `tauri build` would put it inside every installer, and
+# a universal macOS build fails because only the app binary is merged with
+# lipo. CI builds it separately and attaches it to each release.
 [[bin]]
 name = "seedscan-cli"
 path = "src/seedscan_cli.rs"
+required-features = ["cli"]
+
+[features]
+cli = []
 
 [build-dependencies]
 tauri-build = { version = "2.0.0", features = [] }
