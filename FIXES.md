@@ -33,6 +33,12 @@
 
 ## Also
 - A test that every file offered in the source viewer is actually embedded.
+- **Release workflow:** the first 3.1.1 run built every installer but attached
+  none of them. The step that looked up the draft's id came back empty, and
+  tauri-action, given no id, builds, skips all uploads and still finishes
+  green. The id is now read with `gh release view` and checked to be a number,
+  tauri-action also gets the tag name so it can find the draft by itself, and
+  a new step fails the build if no installer actually reached the draft.
 
 Tests: 80 library + 22 CLI (`cargo test --release --features cli`).
 

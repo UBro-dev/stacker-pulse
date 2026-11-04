@@ -88,8 +88,13 @@ jobs:
           gh release create "$TAG" --draft --verify-tag \
             --title "StackerPulse $TAG" --notes-file notes.md \
             --repo "${{ github.repository }}"
-          id=$(gh api "repos/${{ github.repository }}/releases" \
-               --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          id=$(gh release view "$TAG" --json databaseId --jq .databaseId \
+               --repo "${{ github.repository }}")
+          if ! [[ "$id" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not read the id of the draft release for $TAG (got '$id')."
+            exit 1
+          fi
+          echo "Draft release id: $id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
   build:
@@ -157,6 +162,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          # Also give the tag: if the id were ever empty, tauri-action would
+          # otherwise build, skip every upload and still report success.
+          tagName: ${{ github.ref_name }}
+          releaseDraft: true
           args: ${{ matrix.args }}
           # No package.json in this repo: pin the CLI that builds the bundles.
           tauriScript: npx --yes @tauri-apps/cli@2.12.4
@@ -172,6 +181,22 @@ jobs:
           else
             cargo build --release --features cli --bin seedscan-cli
           fi
+
+      - name: The installers really are on the draft
+        # tauri-action finishes green even when it uploaded nothing.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$RUNNER_OS" in
+            Windows) want='\.msi$' ;;
+            macOS)   want='\.dmg$' ;;
+            *)       want='\.AppImage$' ;;
+          esac
+          gh release view "$TAG" --json assets --jq '.assets[].name' \
+            --repo "${{ github.repository }}" | tee assets.txt
+          grep -Eq "$want" assets.txt || {
+            echo "::error::No installer matching $want was attached to the draft."; exit 1; }
 
       - name: No home-folder paths in the shipped binaries
         shell: bash
