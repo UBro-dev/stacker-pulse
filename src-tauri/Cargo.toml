@@ -3,7 +3,7 @@
 
 [package]
 name = "stacker-pulse"
-version = "3.1.1"
+version = "3.2.0"
 description = "StackerPulse & SeedScan — Privacy-by-Design Rust Command Center & Offline Secret Leak Scanner for Stacker News"
 authors = ["UBro-dev"]
 license = "MIT"
@@ -22,7 +22,8 @@ path = "src/main.rs"
 # The command-line scanner is opt-in: `--features cli`. Without
 # `required-features`, `tauri build` would put it inside every installer, and
 # a universal macOS build fails because only the app binary is merged with
-# lipo. CI builds it separately and attaches it to each release.
+# lipo (reported upstream: https://github.com/tauri-apps/tauri/issues/16460).
+# CI builds it separately and attaches it to each release.
 [[bin]]
 name = "seedscan-cli"
 path = "src/seedscan_cli.rs"
@@ -55,6 +56,14 @@ bech32 = "0.9"
 # Solana keypairs: the last 32 bytes must be the ed25519 public key of the
 # first 32, which tells a real key from a signature or random bytes.
 ed25519-dalek = { version = "2.1", default-features = false, features = ["std"] }
+# "Check for updates" (user-initiated only). Pinned to a minor version because
+# we customise its HTTP client (Tor proxy, redirect allowlist), see updates.rs.
+# No `system-proxy` (we never use the OS proxy) and no `zip` (only for the old
+# v1 update formats, which this app never shipped).
+tauri-plugin-updater = { version = "~2.14", default-features = false, features = ["rustls-tls"] }
+# The updater's own reqwest 0.13, named so we can configure it, with SOCKS
+# turned on: without it a socks5h:// proxy is rejected and Tor can't be used.
+reqwest_updater = { package = "reqwest", version = "0.13", default-features = false, features = ["socks"] }
 
 [profile.release]
 panic = "abort"

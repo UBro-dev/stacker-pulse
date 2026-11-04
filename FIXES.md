@@ -1,3 +1,75 @@
+# StackerPulse v3.2.0 — territory trends, updates you ask for, Russian installers
+
+## Territory trends (asked for on Stacker News)
+A stacker suggested the app lean into SN's economic data. New panel on the
+territory tab, *📈 Territory trends*, with a 📈 button on every table row:
+- One request fetches SN's own growth series for a territory:
+  `stackingGrowth`, `spendingGrowth`, `itemGrowth` and `stackerGrowth`. SN
+  picks the bucket size itself (hour for a day, day for a week or a month,
+  month for a year or all time); the app mirrors that rule.
+- Shown: what was earned and **where it came from** (zaps, founder revenue,
+  daily rewards, bounty payouts), what was spent, posts and comments, how
+  many people earned, and the second half of the period against the first.
+- **SN quietly returns site-wide numbers for a territory name it doesn't
+  know.** The query also asks for `sub(name:)`, and the app refuses to show
+  anything when that comes back empty, instead of presenting the whole
+  site's numbers as one territory's.
+- Buckets are matched by time, not by position, so a series with a missing
+  bucket can't shift the others; negative and malformed values are dropped.
+- The query was validated against SN's schema from 3 November 2026, like the
+  others (`sub`, the four growth queries and all existing queries: VALID).
+
+## Updates, only when you ask
+*Settings → 🔄 Updates → Check for updates*, then *Download and install*.
+Built on the official `tauri-plugin-updater` (2.14), with this app's rules on
+top (`src-tauri/src/updates.rs`):
+- **No background check**, ever. Airgap blocks it. Without Tor the app asks
+  first, because GitHub would see your IP, the same rule as the bounty radar.
+- **Tor when Tor is on.** The updater has its own HTTP client (reqwest 0.13)
+  with SOCKS turned off. The app enables SOCKS for it and hands it the same
+  `socks5h://` proxy, with the system and environment proxies disabled.
+- **Only GitHub.** The manifest is this repository's
+  `releases/latest/download/latest.json` (drafts are never offered). Every
+  redirect, and the download URL inside the manifest, must be HTTPS on
+  `github.com`, `objects.githubusercontent.com` or
+  `release-assets.githubusercontent.com`, default port, no credentials.
+- **Signed with the project's own minisign key**, not a real-name
+  certificate. The plugin verifies the package before installing, and
+  `requireSignedVersion` binds the signature to the version number.
+- Progress is polled from Rust, so the webview needed no new permissions.
+- **Verified here end to end, short of a real update:** a throwaway key
+  signed a real `.deb`; the signature verified with the plugin's own library,
+  its trusted comment carries `version:…`, and flipping one bit of the file
+  breaks it. The first real update can only happen between two published
+  releases that both have the updater (3.2.0 → the next one).
+- A proxy written as `socks5h://` with no host used to pass the check; a
+  test caught it, and host and port are now required.
+
+## Releases
+- `tauri-action` gets the signing key from two repository secrets and
+  writes `latest.json`. A new step checks that it lists signed entries for
+  Windows, Linux and both macOS architectures, that its version matches the
+  tag, and that every link is pinned to the tag: draft-only `untagged-…`
+  links stop working once the release is published.
+- The release refuses to start while `tauri.conf.json` still has the
+  placeholder updater key.
+- Local builds without the key (`build_*.sh`, `build_windows.ps1`) add
+  `--config tauri.no-updater.conf.json`, so they still produce installers
+  instead of failing with "a public key has been found, but no private key".
+  Both outcomes were reproduced with a real `tauri build`. The shell scripts
+  expand the optional argument in a way that also works with macOS's
+  bash 3.2.
+
+## Russian installers
+- `-setup.exe` now speaks English or Russian, picked from the Windows
+  language; the `.msi` comes in `en-US` and `ru-RU`.
+- `Cargo.toml` links the Tauri issue behind the `required-features`
+  workaround: [tauri-apps/tauri#16460](https://github.com/tauri-apps/tauri/issues/16460).
+
+Tests: 86 library + 22 CLI (`cargo test --release --features cli`).
+
+---
+
 # StackerPulse v3.1.1 — Support the developer
 
 ## One page for donation addresses (`DONATE.md`)

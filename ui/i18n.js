@@ -9,6 +9,28 @@
 // Keys are the Russian text with whitespace collapsed to single spaces.
 
 const RU_EN = {
+  // Updates
+  "🔄 Обновления": "🔄 Updates",
+  "Приложение само в сеть не ходит: новые версии проверяются только по кнопке. С включённым Tor — через Tor. Каждое обновление подписано ключом проекта, и перед установкой подпись проверяется.": "The app never goes online on its own: new versions are checked only when you press the button, over Tor when Tor is on. Every update is signed with the project's key, and the signature is checked before installing.",
+  "🔄 Проверить обновления": "🔄 Check for updates",
+  "Tor выключен. GitHub увидит ваш IP-адрес. Проверить всё равно?": "Tor is off. GitHub will see your IP address. Check anyway?",
+  "Да, проверить без Tor": "Yes, check without Tor",
+  "Нажмите «Проверить обновления».": "Press \"Check for updates\".",
+  "⬇ Скачать и установить": "⬇ Download and install",
+
+  // Territory trends
+  "📈 Динамика территории": "📈 Territory trends",
+  "Графики самого Stacker News по одной территории: сколько в ней заработали авторы и основатель, сколько потратили на посты и запы и сколько было постов и комментариев. Кнопка 📈 в таблице выше подставляет территорию сюда.": "Stacker News's own charts for one territory: what authors and the founder earned there, what was spent on posts and zaps, and how many posts and comments it had. The 📈 button in the table above fills the territory in here.",
+  "~территория": "~territory",
+  "за сутки": "day",
+  "📈 Показать динамику": "📈 Show trends",
+  "Выберите территорию и период.": "Pick a territory and a period.",
+  "Заработали в территории": "Earned in the territory",
+  "Потратили в территории": "Spent in the territory",
+  "Постов и комментариев": "Posts and comments",
+  "Заработок: вторая половина периода к первой": "Earnings: second half of the period vs first",
+  "Откуда заработок": "Where the earnings came from",
+
   // Support the developer
   "💛 Поддержать разработчика": "💛 Support the developer",
   "Программа бесплатна и останется бесплатной. Пожертвование — добровольный подарок: оно не покупает поддержку или функции и не возвращается.": "The app is free and will stay free. A donation is a voluntary gift: it does not buy support or features and cannot be refunded.",

@@ -32,6 +32,10 @@ anonymous, so the bugs that matter most are:
   locale header, or a build artefact that carries a developer's username or
   time zone.
 - **A bypass of Airgap mode**, which must prevent every outbound connection.
+- **The updater** installing anything not signed with the project key,
+  accepting an older signed package as a newer version, contacting a host
+  other than GitHub, or checking without being asked or without Tor when Tor
+  is on.
 - **Remote code execution in the webview**, including a CSP bypass, or any
   Tauri command that can be made to read or write a path it should not.
 - **A masking failure**: output that reveals enough of a secret to be useful.

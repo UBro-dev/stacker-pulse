@@ -3,12 +3,12 @@
 **Author:** `UBro-dev` · **License:** MIT (Copyright (c) 2026 UBro-dev) · [Русская версия](README.ru.md)
 
 A desktop companion for [Stacker News](https://stacker.news), written in Rust
-(Tauri v2) for Windows and Linux. It reads live SN data through Tor if you
+(Tauri v2) for Windows, Linux and macOS. It reads live SN data through Tor if you
 want, shows what territories really earn, checks your posts for leaked secrets
 before you publish, cleans links, and tracks bounties — without telemetry,
 without demo numbers, and without talking to anything you did not ask for.
 
-> Status: v3.1.1. Tested on Linux (release build, 102 tests, real window).
+> Status: v3.2.0. Tested on Linux (release build, 108 tests, real window).
 > Every release is built and tested by CI on Windows, Linux and macOS.
 > Every GraphQL query is validated against the schema in the
 > `stackernews/stacker.news` source.
@@ -60,6 +60,11 @@ without demo numbers, and without talking to anything you did not ask for.
   scaled to 30 days so it compares with the plan price; for one-time plans the
   app shows how many months the price takes to earn back.
 
+- **Territory trends.** SN's own growth charts for any territory, per hour,
+  day or month: what was earned there and where it came from (zaps, founder
+  revenue, rewards, bounties), what was spent, posts and comments, and how
+  many people earned. A quick trend says whether earnings are growing.
+
 - **Stacker stats.** Public stats for any @nym — stacked and spent per day,
   week, month, year and all time, items, streaks. If someone hides their stats
   in SN, the app says so instead of guessing.
@@ -67,6 +72,9 @@ without demo numbers, and without talking to anything you did not ask for.
 - **Post studio** with real territory post prices, **GraphQL playground**,
   **RU/EN interface**, and a **Settings & privacy** tab (Tor proxy, and a
   viewer for the Rust source that is compiled into the app).
+
+- **Updates you ask for.** *Settings → Updates → Check for updates* looks for
+  a new version and installs it in one click. See the privacy notes below.
 
 ## Privacy model
 
@@ -84,6 +92,13 @@ without demo numbers, and without talking to anything you did not ask for.
   you enable it, only when you press the button, without a token, with no
   redirects, and only for two fixed paths of one repository. Without Tor the
   app asks first, because GitHub would see your IP.
+- **Updates only when you ask, and only signed ones.** There is no background
+  check. *Check for updates* fetches `latest.json` from this repository's
+  GitHub releases over Tor if Tor is on (and asks first if it is off). Every
+  redirect and the download itself must stay on GitHub's hosts. The package's
+  minisign signature is checked against the key built into the app, and the
+  signature also covers the version number, so an older package can't be
+  passed off as a newer one.
 - **No remote code.** Chart.js and Tailwind are bundled; a strict CSP allows
   only local scripts and Tauri IPC — the webview cannot fetch anything.
 - **Links are copied, never opened**, so nothing leaves through your default
@@ -99,7 +114,7 @@ Download from the repository's **Releases** page:
 
 | System | File |
 |---|---|
-| Windows 10/11 | `StackerPulse_<version>_x64_en-US.msi` or `…_x64-setup.exe` |
+| Windows 10/11 | `StackerPulse_<version>_x64-setup.exe` (English or Russian, picked from Windows), or `…_x64_en-US.msi` / `…_x64_ru-RU.msi` |
 | Linux | `StackerPulse_<version>_amd64.AppImage` or `…_amd64.deb` |
 | macOS 10.15+ (Apple Silicon and Intel) | `StackerPulse_<version>_universal.dmg` |
 | Command-line scanner only | `seedscan-cli-<system>.tar.gz` / `.zip` |
@@ -138,7 +153,7 @@ Requires Rust (stable). On Linux also `libwebkit2gtk-4.1-dev`.
 
 ```bash
 cd src-tauri
-cargo test --release --features cli    # 102 tests
+cargo test --release --features cli    # 108 tests
 cargo run --release      # start the app
 ```
 
@@ -154,13 +169,34 @@ cargo install tauri-cli --version "^2"
 The build scripts strip your home folder out of the binaries (rustc would
 otherwise embed `C:\Users\<your name>\…` hundreds of times) and stop if it is
 still there. Build through them, not with a bare `cargo tauri build`, if you
-will share the result.
+will share the result. Without the project's updater key they build plain
+installers (`tauri.no-updater.conf.json`); those can still check for updates.
 
 Releases are built by CI, not by hand: pushing a tag `vX.Y.Z` that matches
 the version in `src-tauri/Cargo.toml` runs `.github/workflows/release.yml`,
 which tests on all three systems, builds every installer and the CLI,
 attaches them to a **draft** release with checksums and attestations, and
-waits for you to press *Publish*.
+waits for you to press *Publish*. Users are only offered a release once it is
+published.
+
+### The updater key (maintainers, once)
+
+Update packages are signed with a minisign key that belongs to the project,
+not to a person, so no real name is involved. Generate it on your own
+machine, never in CI:
+
+```bash
+npx @tauri-apps/cli@2.12.4 signer generate -w ~/.tauri/stackerpulse.key
+```
+
+1. Put the one-line public key (`~/.tauri/stackerpulse.key.pub`) into
+   `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`. The release
+   workflow refuses to run while the placeholder is still there.
+2. Add two repository secrets (*Settings → Secrets and variables → Actions*):
+   `TAURI_SIGNING_PRIVATE_KEY` (the content of `~/.tauri/stackerpulse.key`)
+   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+3. Keep an offline backup of the key file and its password. Without them no
+   installed copy can be updated again; users would have to reinstall by hand.
 
 After changing CSS classes in the UI, rebuild Tailwind:
 

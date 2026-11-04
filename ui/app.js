@@ -127,6 +127,90 @@
       } catch (e) {}
     }
 
+    // ---- Updates (updates.rs): user-initiated, Tor when on, signed packages ----
+    let updInfo = null;
+    let updPoll = null;
+
+    function updLine(ru, en, cls) {
+      const el = document.getElementById('updStatus');
+      setLine(el, ru, en);
+      el.className = 'text-xs ' + (cls || 'text-zinc-300');
+    }
+
+    async function checkForUpdates(allowClearnet) {
+      const confirmBox = document.getElementById('updClearnetConfirm');
+      confirmBox.classList.add('hidden');
+      document.getElementById('updAvailable').classList.add('hidden');
+      if (!hasTauriInvoke()) { updLine('Браузерное превью: сеть отключена', 'Browser preview: network disabled'); return; }
+      if (airgapMode) { updLine('🔒 Airgap: проверка заблокирована', '🔒 Airgap: check blocked', 'text-amber-300'); return; }
+      const cfg = getPrivacyConfig();
+      if (!cfg.use_tor && !allowClearnet) { confirmBox.classList.remove('hidden'); return; }
+      updLine(cfg.use_tor ? 'Проверяю через Tor…' : 'Проверяю…', cfg.use_tor ? 'Checking over Tor…' : 'Checking…');
+      try {
+        updInfo = await window.__TAURI__.core.invoke('sn_check_update', { privacy: cfg, allowClearnet: !!allowClearnet });
+        renderUpdateInfo();
+      } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        if (msg === 'TOR_REQUIRED') { confirmBox.classList.remove('hidden'); return; }
+        updLine(...errLine(e, '❌ '));
+        document.getElementById('updStatus').className = 'text-xs text-red-300';
+      }
+    }
+
+    function renderUpdateInfo() {
+      if (!updInfo) return;
+      const via = updInfo.via_tor ? L(' (через Tor)', ' (over Tor)') : '';
+      const box = document.getElementById('updAvailable');
+      if (!updInfo.available) {
+        box.classList.add('hidden');
+        updLine(`✅ У вас последняя версия: v${updInfo.current}${via}`, `✅ You have the latest version: v${updInfo.current}${via}`, 'text-emerald-300');
+        return;
+      }
+      updLine(`⬆ Доступна версия v${updInfo.available} (у вас v${updInfo.current})${via}`,
+        `⬆ Version v${updInfo.available} is available (you have v${updInfo.current})${via}`, 'text-[#FADA5E]');
+      const notes = document.getElementById('updNotes');
+      notes.textContent = updInfo.notes || '';
+      notes.classList.toggle('hidden', !updInfo.notes);
+      box.classList.remove('hidden');
+    }
+
+    function fmtBytes(n) {
+      if (!n) return '0';
+      return n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+    }
+
+    async function installUpdate() {
+      const btn = document.getElementById('updInstallBtn');
+      const wrap = document.getElementById('updProgressWrap');
+      const bar = document.getElementById('updProgressBar');
+      const text = document.getElementById('updProgressText');
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+      wrap.classList.remove('hidden');
+      text.textContent = L('Скачиваю…', 'Downloading…');
+      clearInterval(updPoll);
+      updPoll = setInterval(async () => {
+        try {
+          const p = await window.__TAURI__.core.invoke('sn_update_progress');
+          const pct = p.total ? Math.min(100, Math.round(p.downloaded / p.total * 100)) : 0;
+          bar.style.width = (p.total ? pct : 15) + '%';
+          text.textContent = p.total ? `${fmtBytes(p.downloaded)} / ${fmtBytes(p.total)} (${pct}%)` : fmtBytes(p.downloaded);
+        } catch (e) {}
+      }, 500);
+      try {
+        await window.__TAURI__.core.invoke('sn_install_update');
+        // Windows: the installer takes over; elsewhere the app restarts itself.
+        text.textContent = L('Подпись проверена, устанавливаю…', 'Signature verified, installing…');
+      } catch (e) {
+        clearInterval(updPoll);
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+        wrap.classList.add('hidden');
+        updLine(...errLine(e, '❌ '));
+        document.getElementById('updStatus').className = 'text-xs text-red-300';
+      }
+    }
+
     // Donation addresses: compiled in from DONATE.md and checked by Rust tests.
     // Shown only when at least one is set; copied, never opened.
     async function renderSupport() {
@@ -859,6 +943,7 @@
         territoryStats.period = period;
         rememberTerritories(territoryStats.map(t => t.name));
         syncDraftTerritories(territoryStats);
+        fillTrendNames();
         setLine(line, `SN: ${territoryStats.length} территорий · ${new Date().toLocaleTimeString()}`,
                              `SN: ${territoryStats.length} territories · ${new Date().toLocaleTimeString()}`);
         renderTerritoryEconomics();
@@ -926,7 +1011,8 @@
 
       tbody.innerHTML = rows.length ? rows.map(t => `
         <tr class="hover:bg-zinc-900/60 transition">
-          <td class="py-2 px-2"><a href="${escapeHtml(t.url)}" class="font-bold text-[#FADA5E] hover:underline">~${escapeHtml(t.name)}</a></td>
+          <td class="py-2 px-2 whitespace-nowrap"><a href="${escapeHtml(t.url)}" class="font-bold text-[#FADA5E] hover:underline">~${escapeHtml(t.name)}</a>
+            <button type="button" data-trends="${escapeHtml(t.name)}" title="${L('Динамика территории', 'Territory trends')}" class="ml-1 px-1 rounded hover:bg-white/10">📈</button></td>
           <td class="py-2 px-2 text-zinc-300">@${escapeHtml(t.founder || '—')}</td>
           <td class="py-2 px-2 text-right text-zinc-300">${formatNumber(t.post_cost)} / ${formatNumber(t.reply_cost)}</td>
           <td class="py-2 px-2 text-zinc-300">${planLabel(t)}</td>
@@ -959,6 +1045,117 @@
           plugins: { legend: { labels: { color: '#d4d4d8', font: { size: 11 } } } },
           scales: { x: { ticks: { color: '#a1a1aa' }, grid: { color: '#27272a' } },
                     y: { ticks: { color: '#a1a1aa' }, grid: { color: '#27272a' } } }
+        }
+      });
+    }
+
+    // ---- Territory trends (sn.rs: fetch_trends, SN's growth charts) ----
+    let terrTrends = null;
+    let terrTrendsChartInstance = null;
+    const TREND_KIND_LABELS = {
+      ZAP: ['запы авторам', 'zaps to authors'],
+      TERRITORY_REVENUE: ['доход основателя', 'founder revenue'],
+      REWARD: ['ежедневные награды', 'daily rewards'],
+      BOUNTY_PAYMENT: ['выплаты баунти', 'bounty payouts'],
+      INVITE_GIFT: ['подарки по приглашениям', 'invite gifts'],
+    };
+
+    function fillTrendNames() {
+      const list = document.getElementById('terrTrendsNames');
+      if (!list || !territoryStats) return;
+      list.innerHTML = territoryStats.map(t => `<option value="~${escapeHtml(t.name)}"></option>`).join('');
+    }
+
+    async function loadTerritoryTrends(name) {
+      const line = document.getElementById('terrTrendsStatus');
+      const input = document.getElementById('terrTrendsSub');
+      if (name) input.value = '~' + name;
+      const sub = input.value.trim().replace(/^~/, '');
+      if (!/^[A-Za-z0-9_]{1,32}$/.test(sub)) { setLine(line, 'Укажите территорию, например ~bitcoin', 'Enter a territory, e.g. ~bitcoin'); return; }
+      if (!hasTauriInvoke()) { setLine(line, 'Браузерное превью: сеть отключена', 'Browser preview: network disabled'); return; }
+      if (airgapMode) { setLine(line, '🔒 Airgap: загрузка заблокирована', '🔒 Airgap: loading blocked'); return; }
+      const period = document.getElementById('terrTrendsPeriod').value;
+      setLine(line, `Загрузка ~${sub}…`, `Loading ~${sub}…`);
+      try {
+        terrTrends = await snInvoke('sn_fetch_territory_trends', { sub, period, privacy: getPrivacyConfig() });
+        setLine(line, `SN: ~${terrTrends.sub} · ${new Date().toLocaleTimeString()}`, `SN: ~${terrTrends.sub} · ${new Date().toLocaleTimeString()}`);
+        renderTerritoryTrends();
+      } catch (e) {
+        terrTrends = null;
+        renderTerritoryTrends();
+        setLine(line, ...errLine(e, '❌ '));
+      }
+    }
+
+    function trendTimeLabel(iso, granularity) {
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const loc = currentLang === 'en' ? 'en-GB' : 'ru-RU';
+      if (granularity === 'hour') return d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+      if (granularity === 'month') return d.toLocaleDateString(loc, { month: 'short', year: 'numeric' });
+      return d.toLocaleDateString(loc, { day: '2-digit', month: 'short' });
+    }
+
+    function renderTerritoryTrends() {
+      const set = (id, v, cls) => { const el = document.getElementById(id); el.textContent = v; if (cls) el.className = cls; };
+      const kinds = document.getElementById('terrTrendsKinds');
+      if (terrTrendsChartInstance) { terrTrendsChartInstance.destroy(); terrTrendsChartInstance = null; }
+      if (!terrTrends) {
+        ['terrTrendsEarned', 'terrTrendsSpent', 'terrTrendsItems'].forEach(id => set(id, '—'));
+        set('terrTrendsChange', '—', 'text-xl font-extrabold font-mono text-zinc-300');
+        kinds.replaceChildren();
+        return;
+      }
+      const t = terrTrends;
+      set('terrTrendsEarned', `${formatNumber(t.total_stacked)} sats`);
+      set('terrTrendsSpent', `${formatNumber(t.total_spent)} sats`);
+      set('terrTrendsItems', formatNumber(t.total_items));
+      if (t.change_pct === null || t.change_pct === undefined) {
+        set('terrTrendsChange', L('нет данных', 'no data'), 'text-xl font-extrabold font-mono text-zinc-500');
+      } else {
+        const up = t.change_pct >= 0;
+        set('terrTrendsChange', `${up ? '▲ +' : '▼ '}${t.change_pct}%`,
+          `text-xl font-extrabold font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`);
+      }
+
+      const total = t.stacked_by_kind.reduce((a, k) => a + k.sats, 0) || 1;
+      kinds.replaceChildren(...t.stacked_by_kind.map(k => {
+        const span = document.createElement('span');
+        span.className = 'px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300';
+        const label = TREND_KIND_LABELS[k.kind] ? L(...TREND_KIND_LABELS[k.kind]) : k.kind;
+        span.textContent = `${label}: ${formatNumber(k.sats)} (${Math.round(k.sats / total * 100)}%)`;
+        return span;
+      }));
+      if (!t.stacked_by_kind.length) {
+        const span = document.createElement('span');
+        span.className = 'text-zinc-500';
+        span.textContent = L('за этот период заработка не было', 'nothing was earned in this period');
+        kinds.appendChild(span);
+      }
+
+      const ctx = document.getElementById('terrTrendsChart').getContext('2d');
+      terrTrendsChartInstance = new Chart(ctx, {
+        data: {
+          labels: t.times.map(x => trendTimeLabel(x, t.granularity)),
+          datasets: [
+            { type: 'line', label: L('Заработали, sats', 'Earned, sats'), data: t.stacked, yAxisID: 'sats',
+              borderColor: '#FADA5E', backgroundColor: 'rgba(250, 218, 94, 0.15)', fill: true, tension: 0.25, pointRadius: 0 },
+            { type: 'line', label: L('Потратили, sats', 'Spent, sats'), data: t.spent, yAxisID: 'sats',
+              borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.25, pointRadius: 0 },
+            { type: 'bar', label: L('Постов и комментариев', 'Posts and comments'), data: t.items, yAxisID: 'count',
+              backgroundColor: 'rgba(161, 161, 170, 0.35)', borderRadius: 3 },
+            { type: 'line', label: L('Зарабатывали (людей)', 'Earners (people)'), data: t.stackers, yAxisID: 'count',
+              borderColor: '#34d399', backgroundColor: 'transparent', borderDash: [4, 3], tension: 0.25, pointRadius: 0 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: '#d4d4d8', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#a1a1aa', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { color: '#27272a' } },
+            sats: { position: 'left', beginAtZero: true, ticks: { color: '#a1a1aa' }, grid: { color: '#27272a' } },
+            count: { position: 'right', beginAtZero: true, ticks: { color: '#a1a1aa', precision: 0 }, grid: { drawOnChartArea: false } }
+          }
         }
       });
     }
@@ -1429,6 +1626,22 @@
 
       // Territory ROI listeners
       document.getElementById('terrLoadBtn').addEventListener('click', loadTerritories);
+      document.getElementById('updCheckBtn').addEventListener('click', () => checkForUpdates(false));
+      document.getElementById('updClearnetYes').addEventListener('click', () => checkForUpdates(true));
+      document.getElementById('updClearnetNo').addEventListener('click', () => {
+        document.getElementById('updClearnetConfirm').classList.add('hidden');
+        updLine('Проверка отменена.', 'Check cancelled.');
+      });
+      document.getElementById('updInstallBtn').addEventListener('click', installUpdate);
+      document.getElementById('terrTrendsLoadBtn').addEventListener('click', () => loadTerritoryTrends());
+      document.getElementById('terrTrendsSub').addEventListener('keydown', e => { if (e.key === 'Enter') loadTerritoryTrends(); });
+      document.getElementById('terrTrendsPeriod').addEventListener('change', () => { if (terrTrends) loadTerritoryTrends(); });
+      document.getElementById('territoryTableBody').addEventListener('click', e => {
+        const b = e.target.closest && e.target.closest('button[data-trends]');
+        if (!b) return;
+        loadTerritoryTrends(b.dataset.trends);
+        document.getElementById('terrTrendsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       ['terrTableSearch', 'terrSortSelect', 'terrOnlyCovering'].forEach(id => {
         document.getElementById(id).addEventListener('input', renderTerritoryEconomics);
         document.getElementById(id).addEventListener('change', renderTerritoryEconomics);
@@ -1670,7 +1883,7 @@
         // Re-render everything that builds text in JS, then swap static text.
         [renderBookmarks, renderBounties, renderTerritoryEconomics, updatePostStudioAudit,
          renderDraftQueue, renderStackerAnalytics, sanitizeUrlNow, renderLiveSeedscanInspector,
-         checkDraftOpsecGuard, renderGhStatus, renderSupport].forEach(fn => { try { fn(); } catch (e) {} });
+         checkDraftOpsecGuard, renderGhStatus, renderSupport, renderTerritoryTrends, renderUpdateInfo].forEach(fn => { try { fn(); } catch (e) {} });
         const gqlOut = document.getElementById('gqlResponseOutput');
         if (gqlOut && gqlOut.textContent.includes('"ready": true')) {
           gqlOut.textContent = JSON.stringify({ hint: L('Нажмите «Выполнить запрос», чтобы отправить запрос через Rust-клиент', 'Press "Run Query" to send the request through the Rust client'), ready: true }, null, 2);

@@ -35,6 +35,13 @@ jobs:
             echo "::error::Tag $TAG does not match Cargo.toml version $v"; exit 1
           fi
 
+      - name: The updater public key is set
+        run: |
+          if grep -q 'REPLACE_WITH_UPDATER_PUBLIC_KEY' src-tauri/tauri.conf.json; then
+            echo "::error::Put the updater public key into plugins.updater.pubkey in src-tauri/tauri.conf.json (see README, Releasing)."
+            exit 1
+          fi
+
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
       - name: THIRD-PARTY.md must match the dependencies being shipped
@@ -160,6 +167,10 @@ jobs:
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Signs the update packages (.sig files) and lets tauri-action write
+          # latest.json. The key never leaves the repository secrets.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           # Also give the tag: if the id were ever empty, tauri-action would
@@ -261,6 +272,23 @@ jobs:
           mkdir dist
           gh release download "$TAG" --dir dist --repo "${{ github.repository }}"
           ls -l dist
+
+      - name: latest.json lists every platform
+        # Three jobs merge their entries into one latest.json; check that none
+        # was lost, or that platform would never be offered the update.
+        working-directory: dist
+        run: |
+          test -f latest.json || { echo "::error::latest.json is missing from the release"; exit 1; }
+          for p in windows-x86_64 linux-x86_64 darwin-aarch64 darwin-x86_64; do
+            jq -e --arg p "$p" '.platforms[$p].url and .platforms[$p].signature' latest.json > /dev/null \
+              || { echo "::error::latest.json has no signed entry for $p"; exit 1; }
+          done
+          # Draft-only "untagged-…" links stop working once the release is published.
+          if jq -r '.platforms[].url' latest.json | grep -v "/releases/download/$TAG/"; then
+            echo "::error::latest.json has download links that are not pinned to $TAG"; exit 1
+          fi
+          jq -r '.version' latest.json | grep -qx "${TAG#v}" \
+            || { echo "::error::latest.json version does not match $TAG"; exit 1; }
 
       - name: SHA256SUMS.txt
         working-directory: dist

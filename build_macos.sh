@@ -16,7 +16,10 @@ export CARGO_ENCODED_RUSTFLAGS="$FLAGS"
 
 cd "$ROOT/src-tauri"
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
-cargo tauri build --target universal-apple-darwin
+# Update packages are signed with the project key, which only CI has.
+NO_UPD=()
+[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || NO_UPD=(--config tauri.no-updater.conf.json)
+cargo tauri build --target universal-apple-darwin ${NO_UPD[@]+"${NO_UPD[@]}"}
 
 # The command-line scanner is opt-in and ships separately: build both
 # architectures and merge them, as CI does.

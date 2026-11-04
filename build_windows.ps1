@@ -15,7 +15,11 @@ $env:CARGO_ENCODED_RUSTFLAGS = $flags -join $sep
 $watch = @($env:USERPROFILE) + @($env:CARGO_HOME | Where-Object { $_ })
 
 Set-Location -Path "$PSScriptRoot\src-tauri"
-cargo tauri build --bundles msi,nsis
+# Update packages are signed with the project key, which only CI has. Without
+# it, build plain installers (they can still check for updates).
+$noUpd = @()
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { $noUpd = @("--config", "tauri.no-updater.conf.json") }
+cargo tauri build --bundles msi,nsis @noUpd
 if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 # The command-line scanner is opt-in and ships separately from the installers.
 cargo build --release --features cli --bin seedscan-cli

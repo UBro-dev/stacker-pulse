@@ -15,7 +15,11 @@ FLAGS+="${SEP}--remap-path-prefix=$ROOT=."
 export CARGO_ENCODED_RUSTFLAGS="$FLAGS"
 
 cd "$ROOT/src-tauri"
-cargo tauri build --bundles appimage,deb
+# Update packages are signed with the project key, which only CI has. Without
+# it, build plain installers (they can still check for updates).
+NO_UPD=()
+[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || NO_UPD=(--config tauri.no-updater.conf.json)
+cargo tauri build --bundles appimage,deb ${NO_UPD[@]+"${NO_UPD[@]}"}
 # The command-line scanner is opt-in and ships separately from the packages.
 cargo build --release --features cli --bin seedscan-cli
 

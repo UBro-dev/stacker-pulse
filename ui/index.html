@@ -632,6 +632,53 @@
           </table>
         </div>
       </div>
+
+      <!-- Territory trends: SN's own growth charts for one territory -->
+      <div id="terrTrendsPanel" class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-5 space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="max-w-3xl space-y-1">
+            <h3 class="text-sm font-bold text-white">📈 Динамика территории</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">Графики самого Stacker News по одной территории: сколько в ней заработали авторы и основатель, сколько потратили на посты и запы и сколько было постов и комментариев. Кнопка 📈 в таблице выше подставляет территорию сюда.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <input id="terrTrendsSub" type="text" list="terrTrendsNames" placeholder="~территория" autocomplete="off" spellcheck="false"
+              class="w-40 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#FADA5E]" />
+            <datalist id="terrTrendsNames"></datalist>
+            <select id="terrTrendsPeriod" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+              <option value="day">за сутки</option>
+              <option value="week">за неделю</option>
+              <option value="month" selected>за месяц</option>
+              <option value="year">за год</option>
+              <option value="forever">за всё время</option>
+            </select>
+            <button type="button" id="terrTrendsLoadBtn" class="px-3.5 py-2 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold text-xs transition">📈 Показать динамику</button>
+          </div>
+        </div>
+        <div id="terrTrendsStatus" class="text-[11px] font-mono text-zinc-400">Выберите территорию и период.</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Заработали в территории</div>
+            <div id="terrTrendsEarned" class="text-xl font-extrabold font-mono text-[#FADA5E]">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Потратили в территории</div>
+            <div id="terrTrendsSpent" class="text-xl font-extrabold font-mono text-sky-400">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Постов и комментариев</div>
+            <div id="terrTrendsItems" class="text-xl font-extrabold font-mono text-white">—</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div class="text-[11px] text-zinc-400">Заработок: вторая половина периода к первой</div>
+            <div id="terrTrendsChange" class="text-xl font-extrabold font-mono text-zinc-300">—</div>
+          </div>
+        </div>
+        <div class="relative h-72"><canvas id="terrTrendsChart"></canvas></div>
+        <div>
+          <div class="text-[11px] text-zinc-400 mb-1.5">Откуда заработок</div>
+          <div id="terrTrendsKinds" class="flex flex-wrap gap-2 text-[11px] font-mono"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ==================== TAB 4: POST STUDIO, PRIVACY LINK SANITIZER & SCHEDULER ==================== -->
@@ -1024,6 +1071,33 @@ error log at /home/satoshi_real_name/lightning/config.conf</textarea>
               </div>
             </div>
           </div>
+
+        <!-- Updates: only when the user asks; over Tor when Tor is on -->
+        <div id="updateCard" class="bg-zinc-900 rounded-xl p-5 space-y-3">
+          <div class="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-2.5">
+            <div class="max-w-2xl">
+              <h3 class="text-sm font-bold text-emerald-300">🔄 Обновления</h3>
+              <p class="text-xs text-zinc-400 mt-0.5">Приложение само в сеть не ходит: новые версии проверяются только по кнопке. С включённым Tor — через Tor. Каждое обновление подписано ключом проекта, и перед установкой подпись проверяется.</p>
+            </div>
+            <button type="button" id="updCheckBtn" class="px-3.5 py-2 rounded-lg bg-emerald-600/40 hover:bg-emerald-600/60 border border-emerald-400/50 text-emerald-100 font-semibold text-xs transition">🔄 Проверить обновления</button>
+          </div>
+          <div id="updClearnetConfirm" class="hidden bg-amber-950/40 border border-amber-500/40 rounded-lg p-3 space-y-2 text-xs">
+            <p class="text-amber-200">Tor выключен. GitHub увидит ваш IP-адрес. Проверить всё равно?</p>
+            <div class="flex gap-2">
+              <button type="button" id="updClearnetYes" class="px-3 py-1.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-semibold">Да, проверить без Tor</button>
+              <button type="button" id="updClearnetNo" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200">Отмена</button>
+            </div>
+          </div>
+          <div id="updStatus" class="text-xs text-zinc-300">Нажмите «Проверить обновления».</div>
+          <div id="updAvailable" class="hidden space-y-2">
+            <pre id="updNotes" class="hidden max-h-40 overflow-auto sn-scroll whitespace-pre-wrap bg-black/40 border border-white/10 rounded-lg p-3 text-[11px] text-zinc-300"></pre>
+            <button type="button" id="updInstallBtn" class="px-3.5 py-2 rounded-lg bg-[#FADA5E] hover:bg-amber-300 text-black font-semibold text-xs transition">⬇ Скачать и установить</button>
+            <div id="updProgressWrap" class="hidden space-y-1">
+              <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden"><div id="updProgressBar" class="h-full bg-emerald-400 transition-all" style="width:0%"></div></div>
+              <div id="updProgressText" class="text-[11px] font-mono text-zinc-400"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- Support the developer: addresses come from DONATE.md via Rust -->
         <div id="supportCard" class="hidden bg-zinc-900 rounded-xl p-5 space-y-3">

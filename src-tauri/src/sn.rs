@@ -470,6 +470,198 @@ pub async fn fetch_territories(
     Ok(all)
 }
 
+// ---------------------------------------------------------------------------
+// Territory trends (SN's own growth charts, per territory)
+// ---------------------------------------------------------------------------
+
+/// The same time series SN draws on its territory stats page: what stackers
+/// earned (`stackingGrowth`), what was spent (`spendingGrowth`), activity
+/// (`itemGrowth`) and how many people earned (`stackerGrowth`), one request.
+/// `sub(name:)` is asked for too: for a name SN does not know, the growth
+/// resolvers silently fall back to site-wide numbers, which would be shown
+/// as if they belonged to the territory.
+pub const TRENDS_QUERY: &str = r#"query StackerPulseTrends($sub: String!, $when: String) {
+  sub(name: $sub) { name }
+  stacking: stackingGrowth(sub: $sub, when: $when) { time data { name value } }
+  spending: spendingGrowth(sub: $sub, when: $when) { time data { name value } }
+  items: itemGrowth(sub: $sub, when: $when) { time data { name value } }
+  stackers: stackerGrowth(sub: $sub, when: $when) { time data { name value } }
+}"#;
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct TrendShare {
+    /// SN's payout type, e.g. ZAP, TERRITORY_REVENUE, REWARD.
+    pub kind: String,
+    pub sats: i64,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct TerritoryTrends {
+    pub sub: String,
+    pub period: String,
+    /// Bucket size SN chose for the period: hour, day or month.
+    pub granularity: &'static str,
+    /// Bucket start times (ISO 8601), oldest first.
+    pub times: Vec<String>,
+    pub stacked: Vec<i64>,
+    pub spent: Vec<i64>,
+    pub items: Vec<i64>,
+    pub stackers: Vec<i64>,
+    pub total_stacked: i64,
+    pub total_spent: i64,
+    pub total_items: i64,
+    /// Where the earned sats came from over the whole period, largest first.
+    pub stacked_by_kind: Vec<TrendShare>,
+    /// Earnings in the second half of the period against the first half, in
+    /// percent. None when the first half earned nothing.
+    pub change_pct: Option<f64>,
+}
+
+/// SN's bucket size for a period (`timeUnitForRange` in lib/time.js).
+pub fn trend_granularity(period: &str) -> &'static str {
+    match period {
+        "day" => "hour",
+        "week" | "month" => "day",
+        _ => "month",
+    }
+}
+
+fn bucket_time(v: &Value) -> Option<String> {
+    match v.get("time")? {
+        Value::String(t) if !t.is_empty() && t.len() <= 40 => Some(t.clone()),
+        Value::Number(n) => n
+            .as_i64()
+            .and_then(DateTime::<Utc>::from_timestamp_millis)
+            .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+        _ => None,
+    }
+}
+
+/// One series as (time, entries). Malformed buckets are dropped.
+fn series(data: &Value, key: &str) -> Vec<(String, Vec<(String, f64)>)> {
+    data.get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|b| {
+                    let t = bucket_time(b)?;
+                    let entries = b
+                        .get("data")
+                        .and_then(|d| d.as_array())
+                        .map(|d| {
+                            d.iter()
+                                .filter_map(|e| {
+                                    let name = e.get("name")?.as_str()?.to_string();
+                                    let value = e.get("value")?.as_f64()?;
+                                    value.is_finite().then_some((name, value.max(0.0)))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    Some((t, entries))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Sum of a bucket. `stackerGrowth` adds a `total` entry with the number of
+/// distinct people, which is what we want there; the per-type counts would
+/// count someone who both got zapped and got a reward twice.
+fn bucket_value(entries: &[(String, f64)], use_total: bool) -> i64 {
+    if use_total {
+        if let Some((_, v)) = entries.iter().find(|(n, _)| n == "total") {
+            return v.round() as i64;
+        }
+    }
+    entries
+        .iter()
+        .filter(|(n, _)| n != "total")
+        .map(|(_, v)| *v)
+        .sum::<f64>()
+        .round() as i64
+}
+
+pub fn parse_trends(data: &Value, sub: &str, period: &str) -> Result<TerritoryTrends, String> {
+    if data.pointer("/sub/name").and_then(|v| v.as_str()).is_none() {
+        return Err(format!("territory ~{sub} was not found on Stacker News"));
+    }
+    let stacking = series(data, "stacking");
+    let lookup = |key: &str, use_total: bool| -> std::collections::HashMap<String, i64> {
+        series(data, key)
+            .into_iter()
+            .map(|(t, e)| (t, bucket_value(&e, use_total)))
+            .collect()
+    };
+    let spending = lookup("spending", false);
+    let items = lookup("items", false);
+    let stackers = lookup("stackers", true);
+
+    let mut by_kind: std::collections::BTreeMap<String, f64> = Default::default();
+    let mut times = Vec::with_capacity(stacking.len());
+    let mut stacked = Vec::with_capacity(stacking.len());
+    for (t, entries) in &stacking {
+        for (name, v) in entries {
+            if name != "total" {
+                *by_kind.entry(name.clone()).or_default() += v;
+            }
+        }
+        stacked.push(bucket_value(entries, false));
+        times.push(t.clone());
+    }
+    let pick = |m: &std::collections::HashMap<String, i64>| -> Vec<i64> {
+        times.iter().map(|t| *m.get(t).unwrap_or(&0)).collect()
+    };
+    let spent = pick(&spending);
+    let items = pick(&items);
+    let stackers = pick(&stackers);
+
+    let mut stacked_by_kind: Vec<TrendShare> = by_kind
+        .into_iter()
+        .map(|(kind, v)| TrendShare {
+            kind,
+            sats: v.round() as i64,
+        })
+        .filter(|s| s.sats > 0)
+        .collect();
+    stacked_by_kind.sort_by(|a, b| b.sats.cmp(&a.sats).then(a.kind.cmp(&b.kind)));
+
+    let half = stacked.len() / 2;
+    let first: i64 = stacked[..half].iter().sum();
+    let second: i64 = stacked[stacked.len() - half..].iter().sum();
+    let change_pct = (half > 0 && first > 0)
+        .then(|| (((second - first) as f64) / (first as f64) * 1000.0).round() / 10.0);
+
+    Ok(TerritoryTrends {
+        sub: sub.to_string(),
+        period: period.to_string(),
+        granularity: trend_granularity(period),
+        total_stacked: stacked.iter().sum(),
+        total_spent: spent.iter().sum(),
+        total_items: items.iter().sum(),
+        times,
+        stacked,
+        spent,
+        items,
+        stackers,
+        stacked_by_kind,
+        change_pct,
+    })
+}
+
+pub async fn fetch_trends(
+    client: &SnGraphqlClient,
+    sub: &str,
+    period: &str,
+) -> Result<TerritoryTrends, String> {
+    let sub = check_name("territory", sub)?;
+    let period = check_period(period)?;
+    let data = client
+        .query_data(TRENDS_QUERY, json!({ "sub": sub, "when": period }))
+        .await?;
+    parse_trends(&data, &sub, period)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -498,7 +690,7 @@ mod tests {
 
     #[test]
     fn queries_use_variables_only() {
-        for q in [FEED_QUERY, USER_QUERY, TOP_SUBS_QUERY] {
+        for q in [FEED_QUERY, USER_QUERY, TOP_SUBS_QUERY, TRENDS_QUERY] {
             assert!(!q.contains("{}"), "no format placeholders in query text");
         }
         assert!(FEED_QUERY.contains("items(sub: $sub, sort: $sort, type: $type"));
@@ -612,5 +804,84 @@ mod tests {
             ("founder1", 80000, 30000, Some(true))
         );
         assert_eq!(t.url, "https://stacker.news/~devs");
+    }
+
+    fn bucket(t: &str, pairs: &[(&str, f64)]) -> Value {
+        json!({ "time": t, "data": pairs.iter().map(|(n, v)| json!({ "name": n, "value": v })).collect::<Vec<_>>() })
+    }
+
+    #[test]
+    fn trends_parsing() {
+        let t = [
+            "2026-10-01T05:00:00.000Z",
+            "2026-10-02T05:00:00.000Z",
+            "2026-10-03T05:00:00.000Z",
+            "2026-10-04T05:00:00.000Z",
+        ];
+        let data = json!({
+            "sub": { "name": "bitcoin" },
+            "stacking": [
+                bucket(t[0], &[("ZAP", 100.0), ("TERRITORY_REVENUE", 10.0)]),
+                bucket(t[1], &[("ZAP", 100.0), ("REWARD", 0.0)]),
+                bucket(t[2], &[("ZAP", 250.0), ("TERRITORY_REVENUE", 30.0)]),
+                bucket(t[3], &[("ZAP", 150.0), ("REWARD", 20.0)]),
+            ],
+            // out of order and one bucket missing: matched by time, missing = 0
+            "spending": [bucket(t[2], &[("ITEM_CREATE", 30.0), ("ZAP", 5.0)]), bucket(t[0], &[("ZAP", 7.0)])],
+            "items": [bucket(t[0], &[("ITEM_CREATE", 2.0)]), bucket(t[1], &[("ITEM_CREATE", 1.0)])],
+            // per-type counts overlap; `total` is distinct people
+            "stackers": [bucket(t[0], &[("ZAP", 3.0), ("REWARD", 3.0), ("total", 4.0)]), bucket(t[1], &[("ZAP", 2.0)])],
+        });
+        let tr = parse_trends(&data, "bitcoin", "month").unwrap();
+        assert_eq!(tr.granularity, "day");
+        assert_eq!(tr.times, t.to_vec());
+        assert_eq!(tr.stacked, vec![110, 100, 280, 170]);
+        assert_eq!(tr.spent, vec![7, 0, 35, 0]);
+        assert_eq!(tr.items, vec![2, 1, 0, 0]);
+        assert_eq!(tr.stackers, vec![4, 2, 0, 0]);
+        assert_eq!(tr.total_stacked, 660);
+        assert_eq!(tr.total_spent, 42);
+        assert_eq!(tr.total_items, 3);
+        assert_eq!(
+            tr.stacked_by_kind[0],
+            TrendShare {
+                kind: "ZAP".into(),
+                sats: 600
+            }
+        );
+        assert_eq!(tr.stacked_by_kind[1].kind, "TERRITORY_REVENUE");
+        assert_eq!(tr.stacked_by_kind.len(), 3, "zero-only kinds are dropped");
+        // first half 210, second half 450
+        assert_eq!(tr.change_pct, Some(114.3));
+    }
+
+    #[test]
+    fn trends_refuse_an_unknown_territory() {
+        // SN falls back to site-wide numbers for an unknown name; never show those as the territory's.
+        let data = json!({ "sub": null, "stacking": [bucket("2026-10-01T05:00:00.000Z", &[("ZAP", 999999.0)])] });
+        let err = parse_trends(&data, "nosuch", "week").unwrap_err();
+        assert!(err.contains("~nosuch"), "{err}");
+    }
+
+    #[test]
+    fn trends_tolerate_junk() {
+        let data = json!({
+            "sub": { "name": "x" },
+            "stacking": [
+                { "time": 1759294800000_i64, "data": [{ "name": "ZAP", "value": -5.0 }, { "name": 3, "value": 1 }] },
+                { "data": [] },
+                { "time": "2026-10-02T00:00:00Z", "data": "nope" }
+            ]
+        });
+        let tr = parse_trends(&data, "x", "year").unwrap();
+        assert_eq!(tr.granularity, "month");
+        assert_eq!(tr.times.len(), 2);
+        assert!(tr.times[0].starts_with("2025-10-01T05:00:00"));
+        assert_eq!(
+            tr.stacked,
+            vec![0, 0],
+            "negative values are clamped, bad entries skipped"
+        );
+        assert_eq!(tr.change_pct, None);
     }
 }

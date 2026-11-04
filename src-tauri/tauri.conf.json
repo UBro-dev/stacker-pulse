@@ -38,6 +38,19 @@
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": [
+          "en-US",
+          "ru-RU"
+        ]
+      },
+      "nsis": {
+        "languages": [
+          "English",
+          "Russian"
+        ],
+        "displayLanguageSelector": false
       }
     },
     "icon": [
@@ -56,6 +69,19 @@
     "macOS": {
       "signingIdentity": "-",
       "minimumSystemVersion": "10.15"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcxNkZBM0IyQUM3MTQwRTgKUldUb1FIR3NzcU52Y1Q5bStzVjJKVC9rOWpPdU5RWDdxZ1NEWjFBUzJLajdCQlJVVDdUSXhOcG4K",
+      "endpoints": [
+        "https://github.com/UBro-dev/stacker-pulse/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

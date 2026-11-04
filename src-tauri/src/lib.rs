@@ -9,6 +9,7 @@ pub mod sanitizer;
 pub mod seedscan;
 pub mod sn;
 pub mod support;
+pub mod updates;
 
 use detect::Finding;
 use graphql::{NetworkPrivacyConfig, SnGraphqlClient};
@@ -110,6 +111,18 @@ async fn sn_fetch_territories(
 ) -> Result<Vec<sn::TerritoryStats>, String> {
     let client = SnGraphqlClient::with_privacy_config(&privacy.unwrap_or_default())?;
     sn::fetch_territories(&client, &period).await
+}
+
+/// One territory's earnings, spending, activity and earners over time, from
+/// SN's own growth charts.
+#[tauri::command]
+async fn sn_fetch_territory_trends(
+    sub: String,
+    period: String,
+    privacy: Option<NetworkPrivacyConfig>,
+) -> Result<sn::TerritoryTrends, String> {
+    let client = SnGraphqlClient::with_privacy_config(&privacy.unwrap_or_default())?;
+    sn::fetch_trends(&client, &sub, &period).await
 }
 
 #[tauri::command]
@@ -214,6 +227,8 @@ fn sn_get_rust_source(name: String) -> Result<&'static str, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::PendingUpdate::default())
         .setup(|app| {
             // Acrylic is Windows-only; on other platforms there is nothing to do,
             // so the window lookup is compiled only where it is used.
@@ -233,8 +248,12 @@ pub fn run() {
             sn_onion_status,
             sn_app_version,
             sn_support_addresses,
+            updates::sn_check_update,
+            updates::sn_install_update,
+            updates::sn_update_progress,
             sn_fetch_stacker,
             sn_fetch_territories,
+            sn_fetch_territory_trends,
             sn_execute_graphql,
             sn_sanitize_url,
             sn_run_seedscan_disk,
