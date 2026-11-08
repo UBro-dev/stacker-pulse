@@ -1,0 +1,108 @@
+# Temporary. Verifies tauri-apps/tauri#16460 on real macOS universal builds, for the
+# unpatched `dev` branch and for the patch in tauri-apps/tauri#16470.
+# Lives on a throwaway branch and is never merged into main.
+name: verify-16470
+
+on:
+  workflow_dispatch:
+
+jobs:
+  universal-build:
+    name: universal build (${{ matrix.label }})
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: dev
+            ref: refs/heads/dev
+            expect: fail
+          - label: pr-16470
+            ref: refs/pull/16470/head
+            expect: pass
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Check out tauri-cli at ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tauri"
+          cd "$RUNNER_TEMP/tauri"
+          git init -q
+          git remote add origin https://github.com/tauri-apps/tauri
+          git fetch -q --depth 1 origin "${{ matrix.ref }}"
+          git checkout -q FETCH_HEAD
+          echo "TAURI_CLI=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build tauri-cli
+        working-directory: ${{ runner.temp }}/tauri
+        run: cargo build --release -p tauri-cli --bin cargo-tauri
+
+      - name: Warm the app build (both targets, no bundle)
+        # Gives a clear signal if the crate itself fails to build for either architecture,
+        # before the universal bundler is involved.
+        working-directory: src-tauri
+        run: |
+          set -euo pipefail
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            echo "::group::cargo build --features cli --target $t"
+            cargo build --release --features cli --target "$t"
+            echo "::endgroup::"
+          done
+
+      - name: tauri build --target universal-apple-darwin
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          "${{ runner.temp }}/tauri/target/release/cargo-tauri" build \
+            --target universal-apple-darwin --features cli 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Inspect the bundle
+        run: |
+          set -uo pipefail
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/StackerPulse.app/Contents/MacOS"
+          echo "### ${{ matrix.label }} (tauri-cli $TAURI_CLI)" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d "$APP" ]; then
+            echo "Binaries inside the .app:" >> "$GITHUB_STEP_SUMMARY"
+            ls -1 "$APP" | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+            if [ -f "$APP/seedscan-cli" ]; then
+              echo "seedscan-cli: present" >> "$GITHUB_STEP_SUMMARY"
+              echo "RESULT=present" >> "$GITHUB_ENV"
+            else
+              echo "seedscan-cli: **missing**" >> "$GITHUB_STEP_SUMMARY"
+              echo "RESULT=missing" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "No .app was produced." >> "$GITHUB_STEP_SUMMARY"
+            echo "RESULT=no-app" >> "$GITHUB_ENV"
+          fi
+          if grep -q "Failed to copy binary" "$RUNNER_TEMP/build.log"; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Bundler error seen:" >> "$GITHUB_STEP_SUMMARY"
+            grep "Failed to copy binary" "$RUNNER_TEMP/build.log" | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Assert the expected outcome
+        run: |
+          set -euo pipefail
+          echo "expected=${{ matrix.expect }} result=$RESULT"
+          if [ "${{ matrix.expect }}" = "fail" ]; then
+            # Unpatched dev: the bundle must fail with the missing second binary.
+            [ "$RESULT" != "present" ] || { echo "::error::dev unexpectedly bundled seedscan-cli"; exit 1; }
+          else
+            [ "$RESULT" = "present" ] || { echo "::error::patch did not put seedscan-cli in the bundle"; exit 1; }
+          fi
+
+      - name: Upload the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.label }}
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
