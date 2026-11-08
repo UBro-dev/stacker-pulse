@@ -205,6 +205,13 @@ npx @tauri-apps/cli@2.12.4 signer generate -w ~/.tauri/stackerpulse.key
 npx tailwindcss@3.4.17 -c tools/tailwind.config.js -i tools/tailwind.input.css -o ui/vendor/tailwind.css --minify
 ```
 
+## Благодарности
+
+Вид «динамика территорий» появился после подсказки [@Scoresby](https://stacker.news/Scoresby)
+на Stacker News. [@Scoresby](https://stacker.news/Scoresby) спросил(а), что могло бы показывать приложение, сосредоточенное
+на экономике SN. Идея принадлежит [@Scoresby](https://stacker.news/Scoresby); реализация полностью моя.
+Если не хотите упоминания, то обратитесь, уберу.
+
 ## Ограничения
 
 - SeedScan знает только перечисленные форматы. Архивы, PDF и офисные файлы
