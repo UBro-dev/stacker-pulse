@@ -204,6 +204,13 @@ After changing CSS classes in the UI, rebuild Tailwind:
 npx tailwindcss@3.4.17 -c tools/tailwind.config.js -i tools/tailwind.input.css -o ui/vendor/tailwind.css --minify
 ```
 
+## Thanks
+
+The territory dynamics view was built after a suggestion by [@Scoresby](https://stacker.news/Scoresby)
+on Stacker News, who asked what an app focused on SN's economy could show. The idea is [@Scoresby](https://stacker.news/Scoresby);
+the implementation is entirely mine. If you'd rather not be listed here,
+say so and I'll remove it.
+
 ## Limits
 
 - SeedScan knows only the formats listed above. It does not read archives,
