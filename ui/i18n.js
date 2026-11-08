@@ -9,6 +9,14 @@
 // Keys are the Russian text with whitespace collapsed to single spaces.
 
 const RU_EN = {
+  // Bounty freshness
+  "Свежесть": "Freshness",
+  "За последние 30 дней": "Last 30 days",
+  "За последние 90 дней": "Last 90 days",
+  "За последние полгода": "Last 6 months",
+  "За последний год": "Last year",
+  "Любые, включая старые": "Any, including old ones",
+
   // Updates
   "🔄 Обновления": "🔄 Updates",
   "Приложение само в сеть не ходит: новые версии проверяются только по кнопке. С включённым Tor — через Tor. Каждое обновление подписано ключом проекта, и перед установкой подпись проверяется.": "The app never goes online on its own: new versions are checked only when you press the button, over Tor when Tor is on. Every update is signed with the project's key, and the signature is checked before installing.",

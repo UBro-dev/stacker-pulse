@@ -278,6 +278,63 @@ pub fn parse_user(data: &Value, period: &str, onion: bool) -> Result<StackerStat
     })
 }
 
+/// Works around a Stacker News bug (api/resolvers/user.js, November 2026):
+/// for a period with no payouts, the `stacked` and `spent` resolvers
+/// destructure an empty query result and throw
+/// "Cannot read properties of undefined (reading 'stacked')", although the
+/// code right after it means to return 0. The fields are nullable, so SN
+/// still sends the rest of the user with `null` there, and `null` already
+/// means "this stacker hides their stats". So: exactly this error on exactly
+/// these fields becomes 0; any other error is still reported as an error.
+pub fn repair_user_payload(payload: Value) -> Result<Value, String> {
+    let mut data = payload
+        .get("data")
+        .cloned()
+        .ok_or_else(|| first_error(&payload).unwrap_or("Stacker News returned no data".into()))?;
+    let errors = payload
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for err in &errors {
+        let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("");
+        let path: Vec<&str> = err
+            .get("path")
+            .and_then(|p| p.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+            .unwrap_or_default();
+        let field = match path.as_slice() {
+            ["user", "optional", f @ ("stacked" | "spent")] => *f,
+            _ => {
+                return Err(format!(
+                    "Stacker News: {}",
+                    msg.chars().take(300).collect::<String>()
+                ))
+            }
+        };
+        if !msg.contains(&format!("reading '{field}'")) {
+            return Err(format!(
+                "Stacker News: {}",
+                msg.chars().take(300).collect::<String>()
+            ));
+        }
+        if let Some(opt) = data
+            .pointer_mut("/user/optional")
+            .and_then(|o| o.as_object_mut())
+        {
+            opt.insert(field.to_string(), json!(0));
+        }
+    }
+    Ok(data)
+}
+
+fn first_error(payload: &Value) -> Option<String> {
+    payload
+        .pointer("/errors/0/message")
+        .and_then(|m| m.as_str())
+        .map(|m| format!("Stacker News: {}", m.chars().take(300).collect::<String>()))
+}
+
 pub async fn fetch_stacker(
     client: &SnGraphqlClient,
     name: &str,
@@ -285,9 +342,10 @@ pub async fn fetch_stacker(
 ) -> Result<StackerStats, String> {
     let name = check_name("stacker", name)?;
     let period = check_period(period)?;
-    let data = client
-        .query_data(USER_QUERY, json!({ "name": name, "when": period }))
+    let payload = client
+        .execute_raw(USER_QUERY, Some(json!({ "name": name, "when": period })))
         .await?;
+    let data = repair_user_payload(payload)?;
     parse_user(&data, period, client.onion_links())
 }
 
@@ -883,5 +941,45 @@ mod tests {
             "negative values are clamped, bad entries skipped"
         );
         assert_eq!(tr.change_pct, None);
+    }
+
+    #[test]
+    fn sn_zero_activity_bug_becomes_zero_not_hidden() {
+        // What SN returns for an inactive account (resolver throws, field nulls out).
+        let payload = json!({
+            "errors": [
+                { "message": "Cannot read properties of undefined (reading 'stacked')", "path": ["user", "optional", "stacked"] },
+                { "message": "Cannot read properties of undefined (reading 'spent')", "path": ["user", "optional", "spent"] }
+            ],
+            "data": { "user": { "name": "quiet", "createdAt": "2025-09-01T00:00:00.000Z", "nitems": 3, "nterritories": 0,
+                "optional": { "stacked": null, "spent": null, "streak": null, "maxStreak": 2, "isContributor": false, "hasRecvWallet": false } } }
+        });
+        let data = repair_user_payload(payload).unwrap();
+        let st = parse_user(&data, "month", false).unwrap();
+        assert_eq!(st.stacked, Some(0));
+        assert_eq!(st.spent, Some(0));
+        assert_eq!(st.items, 3);
+    }
+
+    #[test]
+    fn hidden_stats_stay_hidden_and_other_errors_still_fail() {
+        // Hidden stats: null without any error, must stay None.
+        let hidden = json!({ "data": { "user": { "name": "shy", "optional": { "stacked": null, "spent": null } } } });
+        let st = parse_user(&repair_user_payload(hidden).unwrap(), "week", false).unwrap();
+        assert_eq!((st.stacked, st.spent), (None, None));
+        // Same message on another field, or another message on these fields: a real error.
+        for err in [
+            json!({ "message": "Cannot read properties of undefined (reading 'stacked')", "path": ["user", "nitems"] }),
+            json!({ "message": "rate limited", "path": ["user", "optional", "stacked"] }),
+            json!({ "message": "Cannot read properties of undefined (reading 'spent')", "path": ["user", "optional", "stacked"] }),
+        ] {
+            let p = json!({ "errors": [err], "data": { "user": { "name": "x", "optional": {} } } });
+            assert!(repair_user_payload(p)
+                .unwrap_err()
+                .starts_with("Stacker News: "));
+        }
+        // No data at all: the first error is reported.
+        let none = json!({ "errors": [{ "message": "boom" }] });
+        assert_eq!(repair_user_payload(none).unwrap_err(), "Stacker News: boom");
     }
 }

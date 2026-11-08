@@ -3,7 +3,7 @@
 
 [package]
 name = "stacker-pulse"
-version = "3.2.0"
+version = "3.2.1"
 description = "StackerPulse & SeedScan — Privacy-by-Design Rust Command Center & Offline Secret Leak Scanner for Stacker News"
 authors = ["UBro-dev"]
 license = "MIT"

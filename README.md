@@ -8,7 +8,7 @@ want, shows what territories really earn, checks your posts for leaked secrets
 before you publish, cleans links, and tracks bounties — without telemetry,
 without demo numbers, and without talking to anything you did not ask for.
 
-> Status: v3.2.0. Tested on Linux (release build, 108 tests, real window).
+> Status: v3.2.1. Tested on Linux (release build, 110 tests, real window).
 > Every release is built and tested by CI on Windows, Linux and macOS.
 > Every GraphQL query is validated against the schema in the
 > `stackernews/stacker.news` source.
@@ -153,7 +153,7 @@ Requires Rust (stable). On Linux also `libwebkit2gtk-4.1-dev`.
 
 ```bash
 cd src-tauri
-cargo test --release --features cli    # 108 tests
+cargo test --release --features cli    # 110 tests
 cargo run --release      # start the app
 ```
 

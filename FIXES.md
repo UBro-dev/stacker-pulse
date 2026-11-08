@@ -1,3 +1,32 @@
+# StackerPulse v3.2.1 — stacker stats for quiet accounts, stale bounties
+
+## Stacker stats no longer fail on inactive accounts
+Looking up an account with no activity in the period failed with
+`Stacker News: Cannot read properties of undefined (reading 'stacked')`
+(or `'spent'`), and nothing at all was shown.
+- The cause is in Stacker News itself (`api/resolvers/user.js`): the
+  `stacked` and `spent` resolvers run `SUM(...) ... GROUP BY "userId"` and
+  destructure the first row. With no rows in the period the result is empty
+  and the destructuring throws, although the next line means to return 0.
+- The fields are nullable, so SN still sends the rest of the profile. The app
+  now turns exactly that error, on exactly those two fields, into 0 for the
+  period. Any other error is still shown as an error, and stats a stacker
+  chose to hide are still shown as hidden (they come back as `null` with no
+  error). Both cases are covered by tests.
+
+## Bounty hunter: how old is it?
+SN keeps a bounty "open" for as long as nobody pays it, so the list carried
+offers from people who left a year ago.
+- Every card shows its age: when an SN bounty was posted, or when a GitHub
+  issue last had activity. Anything older than six months is marked as
+  possibly abandoned.
+- New *Freshness* filter: last 30 / 90 days, half a year (default), a year,
+  or everything. Your own tasks are never hidden by age.
+
+Tests: 88 library + 22 CLI (`cargo test --release --features cli`).
+
+---
+
 # StackerPulse v3.2.0 — territory trends, updates you ask for, Russian installers
 
 ## Territory trends (asked for on Stacker News)

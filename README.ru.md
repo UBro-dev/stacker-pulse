@@ -8,7 +8,7 @@
 утечку секретов перед публикацией, чистит ссылки и ведёт учёт баунти. Без
 телеметрии, без демо-цифр и без обращений туда, куда вы не просили.
 
-> Статус: v3.2.0. Проверено на Linux (release-сборка, 108 тестов, настоящее окно).
+> Статус: v3.2.1. Проверено на Linux (release-сборка, 110 тестов, настоящее окно).
 > Каждый релиз собирается и тестируется в CI на Windows, Linux и macOS.
 > Все GraphQL-запросы проверены по схеме из исходников
 > `stackernews/stacker.news`.
@@ -152,7 +152,7 @@ gh attestation verify <файл> --repo UBro-dev/stacker-pulse
 
 ```bash
 cd src-tauri
-cargo test --release --features cli    # 108 тестов
+cargo test --release --features cli    # 110 тестов
 cargo run --release      # запустить приложение
 ```
 

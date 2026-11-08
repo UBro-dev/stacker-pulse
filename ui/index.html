@@ -470,7 +470,7 @@
       </div>
 
       <!-- Bounty Filters -->
-      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div>
           <label for="bountySourceFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Категория баунти</label>
           <select id="bountySourceFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
@@ -496,6 +496,16 @@
             <option value="Easy">Easy / Good First (20k–100k sats)</option>
             <option value="Medium">Medium (250k sats)</option>
             <option value="Hard">Hard / Core (500k–1M sats)</option>
+          </select>
+        </div>
+        <div>
+          <label for="bountyAgeFilter" class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Свежесть</label>
+          <select id="bountyAgeFilter" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white">
+            <option value="30">За последние 30 дней</option>
+            <option value="90">За последние 90 дней</option>
+            <option value="180" selected>За последние полгода</option>
+            <option value="365">За последний год</option>
+            <option value="all">Любые, включая старые</option>
           </select>
         </div>
         <div>

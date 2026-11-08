@@ -708,6 +708,7 @@
         status: i.state === 'closed' ? 'CLOSED' : 'OPEN',
         author: 'stackernews/stacker.news',
         url: i.url,
+        since: i.updated_at || '', sinceKind: 'updated',
         tags: (i.labels || []).filter(l => !/^difficulty:|^priority:/.test(l)).slice(0, 3),
         live: true
       };
@@ -717,7 +718,8 @@
       const sn = (snBounties || []).map(f => ({
         id: 'sn-' + f.id, title: f.title, source: 'SN_POST', territory: f.sub ? '~' + f.sub : 'SN',
         rewardSats: f.bounty || 0, awardKnown: !!f.bounty, awardNote: '', estHours: 0, difficulty: '—',
-        status: 'OPEN', author: '@' + (f.user || 'anon'), url: f.url, tags: []
+        status: 'OPEN', author: '@' + (f.user || 'anon'), url: f.url, tags: [],
+        since: f.created_at || '', sinceKind: 'created'
       }));
       const gh = ghLive && Array.isArray(ghLive.issues) ? ghLive.issues.map(ghIssueToBounty) : [];
       const own = customBounties.map(c => ({ ...c, source: 'CUSTOM', awardKnown: c.rewardSats > 0, author: L('добавлено вами', 'added by you'), territory: L('свой трекер', 'own tracker'), tags: [] }));
@@ -841,12 +843,31 @@
       showToast(L('Задача добавлена в трекер', 'Task added to the tracker'));
     }
 
+    function bountyAgeDays(b) {
+      const t = Date.parse(b.since || '');
+      return isNaN(t) ? 0 : Math.max(0, (Date.now() - t) / 86400000);
+    }
+
+    function bountyAgeLabel(b) {
+      if (!b.since || isNaN(Date.parse(b.since))) return '';
+      const d = Math.floor(bountyAgeDays(b));
+      const n = d < 1 ? L('сегодня', 'today')
+        : d < 31 ? L(`${d} дн. назад`, `${d}d ago`)
+        : d < 365 ? L(`${Math.floor(d / 30)} мес. назад`, `${Math.floor(d / 30)}mo ago`)
+        : L(`${Math.floor(d / 365)} г. ${Math.floor((d % 365) / 30)} мес. назад`, `${Math.floor(d / 365)}y ${Math.floor((d % 365) / 30)}mo ago`);
+      const what = b.sinceKind === 'updated' ? L('активность', 'activity') : L('опубликовано', 'posted');
+      const stale = d > 180;
+      return `<span class="text-[11px] font-mono ${stale ? 'text-amber-400' : 'text-zinc-500'}" title="${escapeHtml(b.since)}">🕒 ${what}: ${n}${stale ? L(' · возможно, заброшено', ' · may be abandoned') : ''}</span>`;
+    }
+
     function renderBounties() {
       const source = document.getElementById('bountySourceFilter').value;
       const status = document.getElementById('bountyStatusFilter').value;
       const diff = document.getElementById('bountyDifficultyFilter').value;
       const sort = document.getElementById('bountySortFilter').value;
       const text = (document.getElementById('bountySearchInput').value || '').trim().toLowerCase();
+      const ageSel = document.getElementById('bountyAgeFilter').value;
+      const maxAgeDays = ageSel === 'all' ? Infinity : Number(ageSel);
       const items = allBounties();
 
       const openTotal = items.filter(b => b.status === 'OPEN' && b.awardKnown && b.source !== 'CUSTOM').reduce((acc, b) => acc + b.rewardSats, 0);
@@ -863,6 +884,9 @@
         if (status === 'PAID' && b.status === 'OPEN') return false;
         if (diff !== 'all' && b.difficulty !== diff) return false;
         if (text && !(`${b.title} ${(b.tags || []).join(' ')}`.toLowerCase().includes(text))) return false;
+        // Stale bounties: SN shows them as open for years after the author left.
+        // Your own tasks are never hidden by age.
+        if (b.source !== 'CUSTOM' && bountyAgeDays(b) > maxAgeDays) return false;
         return true;
       });
 
@@ -876,7 +900,7 @@
         const nothing = !snBounties && !(ghLive && ghLive.issues) && customBounties.length === 0;
         grid.innerHTML = `<div class="bg-[#1b1b1f] border border-zinc-800 rounded-xl p-6 text-center text-xs text-zinc-400 md:col-span-2">${nothing
           ? L('Пока ничего не загружено. Нажмите «⚡ Баунти SN» или «🐙 Загрузить задачи GitHub», либо добавьте свою задачу.', 'Nothing loaded yet. Press "⚡ SN bounties" or "🐙 Load GitHub issues", or add your own task.')
-          : L('Задач по этим фильтрам нет.', 'No tasks match these filters.')}</div>`;
+          : L('Задач по этим фильтрам нет. Попробуйте «Свежесть: любые».', 'No tasks match these filters. Try "Freshness: any".')}</div>`;
         return;
       }
       grid.innerHTML = filtered.map(b => {
@@ -902,6 +926,7 @@
                 <span class="text-[11px] font-mono px-2 py-0.5 rounded ${closed ? 'bg-zinc-800 text-zinc-400' : 'bg-emerald-950 text-emerald-300 border border-emerald-700'}">${statusBadge}</span>
               </div>
               <h3 class="text-sm sm:text-base font-bold text-white">${escapeHtml(b.title)}</h3>
+              ${bountyAgeLabel(b)}
               <p class="text-xs text-zinc-400">${L('Автор / Куратор', 'Author / Curator')}: <strong class="text-zinc-200">${escapeHtml(b.author)}</strong> · ${L('Сложность', 'Difficulty')}: <strong class="text-amber-300">${escapeHtml(b.difficulty)}</strong></p>
               <div class="flex flex-wrap gap-1.5 pt-1">
                 ${(b.tags || []).map(t => `<span class="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-800">${escapeHtml(t)}</span>`).join('')}
@@ -1558,7 +1583,7 @@
       });
 
       // Bounty filters
-      ['bountySourceFilter', 'bountyStatusFilter', 'bountyDifficultyFilter', 'bountySortFilter'].forEach(id => {
+      ['bountySourceFilter', 'bountyStatusFilter', 'bountyDifficultyFilter', 'bountySortFilter', 'bountyAgeFilter'].forEach(id => {
         document.getElementById(id).addEventListener('change', renderBounties);
       });
 
